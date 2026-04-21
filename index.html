@@ -372,6 +372,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
 <!-- PAGE 4 -->
 <div class="page" id="p4">
   <div class="card" style="background:#fff8e6;border-color:#e6b84a;">
+    <div class="card-title" style="color:#8a5c00;">🔧 Firebase 設定說明</div>
+    <div style="font-size:0.8rem;line-height:1.9;color:#5a3a00;">
+      <strong>步驟一</strong>：前往 <a href="https://console.firebase.google.com" target="_blank" style="color:var(--blue);">console.firebase.google.com</a><br>
+      <strong>步驟二</strong>：建立新專案 → 新增 Web 應用程式 → 複製 firebaseConfig<br>
+      <strong>步驟三</strong>：開啟 Realtime Database → 建立資料庫（選 Asia 地區）<br>
+      <strong>步驟四</strong>：規則設定改為：<br>
+      <code style="background:#fde8c0;padding:4px 8px;border-radius:6px;display:block;margin:6px 0;font-size:0.75rem;font-family:monospace;">{ "rules": { ".read": true, ".write": true } }</code>
+      <strong>步驟五</strong>：用文字編輯器開啟 index.html，把頂部 <code>firebaseConfig</code> 換成你的設定<br>
+      <strong>步驟六</strong>：上傳到 Vercel 即完成 ✅
     </div>
   </div>
 
