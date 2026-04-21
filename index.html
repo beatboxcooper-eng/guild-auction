@@ -1073,11 +1073,10 @@ function toggleCDInput() {
 function addItem() {
   const name = document.getElementById('newItemName').value.trim();
   const shortName = document.getElementById('newItemShort').value.trim();
-  const qty = parseInt(document.getElementById('newItemQty').value)||1;
   const tier = document.getElementById('newItemTier').value;
   const hasCD = document.getElementById('newItemCD').checked;
   const cdDays = hasCD ? (parseInt(document.getElementById('newItemCDDays').value)||3) : 3;
-  if (!name) return;
+  if (!name) { alert('請輸入完整名稱'); return; }
   if (S.itemDB.find(i => i.name === name)) { alert('此戰利品名稱已存在'); return; }
   const perMemberLimit = tier === 'purple' ? 1 : 2;
   const id = uid();
