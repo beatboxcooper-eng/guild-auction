@@ -388,16 +388,16 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="card-title">🗂 場次管理</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <button class="btn btn-red btn-sm" onclick="clearBids()">🗑 清除本場競標</button>
-      <button class="btn btn-gray btn-sm" onclick="clearAll()">⚠️ 全部重置</button>
+      <button class="btn btn-gray btn-sm" onclick="clearAll()">↩ 重置場次（保留設定）</button>
+      <button class="btn btn-gray btn-sm" style="color:var(--red);" onclick="resetEverything()">⚠️ 完全重置</button>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-title">🎁 戰利品清單設定</div>
-    <div class="notice" style="font-size:0.75rem;">💡 紫色=稀有（每人每場限1顆）　藍色=普通（每人每場最多2顆）<br>簡稱用於貼上解析，輸出時可切換全名或簡稱</div>
+    <div class="card-title">🎁 戰利品資料庫 <span style="color:var(--green);font-weight:400;font-size:0.7rem;">永久保存</span></div>
+    <div class="notice" style="font-size:0.75rem;">💡 設定一次永久保留，不會因清除場次而消失。貼上統計時自動對照此資料庫。<br>🟣 紫色（限1顆）　🔵 藍色（最多2顆）</div>
     <div class="settings-row">
       <input type="text" id="newItemName" placeholder="完整名稱（如：嘲顱獸人射手）" style="flex:3;">
-      <input type="number" id="newItemQty" value="1" min="1" max="99" style="width:52px;flex:none;">
     </div>
     <div class="settings-row">
       <input type="text" id="newItemShort" placeholder="簡稱（如：射手）" style="flex:1;">
@@ -413,7 +413,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
       <input type="number" id="newItemCDDays" value="3" min="1" max="30" style="width:60px;display:none;">
       <span id="cdDaysHint" style="display:none;font-size:0.72rem;color:var(--orange);flex:none;">天</span>
     </div>
-    <button class="btn btn-gold btn-full" onclick="addItem()" style="margin-top:4px;">新增戰利品</button>
+    <button class="btn btn-gold btn-full" onclick="addItem()" style="margin-top:4px;">新增至資料庫</button>
     <div style="margin-top:12px;" id="itemManageList"></div>
   </div>
 
@@ -494,20 +494,16 @@ const STATIC_ALIASES = {
   '食人魔':'食人魔',
 };
 
-// Build dynamic alias map from current item list
-// Maps: fullName → item.shortName, shortName → item.shortName
+// Build dynamic alias map from permanent itemDB
+// Maps: fullName → shortName, shortName → shortName
 function buildDynamicAliases() {
   const map = {};
-  S.items.forEach(item => {
+  S.itemDB.forEach(item => {
     const short = item.shortName || item.name;
-    // Full name → shortName
     const fk = item.name.toLowerCase().replace(/\s/g,'');
-    map[fk] = short;
-    map[item.name] = short;
-    // shortName → shortName (self)
+    map[fk] = short; map[item.name] = short;
     const sk = short.toLowerCase().replace(/\s/g,'');
-    map[sk] = short;
-    map[short] = short;
+    map[sk] = short; map[short] = short;
   });
   return map;
 }
@@ -527,8 +523,11 @@ function getItemLabel(item) {
 const CD_ITEMS = new Set(['黑龍','紅三']);
 
 // ===== STATE =====
+// itemDB = permanent item definitions (name, shortName, tier, CD settings)
+// items  = per-session active items with qty (populated by parseLoot)
 let S = {
-  items: [],
+  itemDB: [],   // permanent — never cleared by clearBids
+  items: [],    // per-session (has qty, references itemDB via id match)
   members: REAL_MEMBERS.map((n,i) => ({id:'m'+i, name:n, groupId:null})),
   bids: [],
   session: null,
@@ -581,6 +580,7 @@ function startFirebase() {
 }
 
 function mergeRemote(data) {
+  if (data.itemDB !== undefined) S.itemDB = data.itemDB;
   if (data.items !== undefined) S.items = data.items;
   if (data.bids !== undefined) S.bids = data.bids;
   if (data.session !== undefined) S.session = data.session;
@@ -597,6 +597,7 @@ function save() {
   isSaving = true;
   setSyncUI('ing');
   window._fbSave({
+    itemDB: S.itemDB,
     items: S.items,
     bids: S.bids,
     session: S.session,
@@ -673,18 +674,40 @@ function parseLoot() {
   if (!found.length) { alert('無法解析，請確認格式如：黑龍 3。紅三 1。'); return; }
 
   found.forEach(f => {
-    const ex = S.items.find(i => i.name === f.name || i.shortName === f.name);
-    if (ex) { ex.qty = f.qty; }
-    else {
+    // First try to match against itemDB (by name or shortName)
+    const dbEntry = S.itemDB.find(i =>
+      i.name === f.name || i.shortName === f.name ||
+      i.name.toLowerCase() === f.name.toLowerCase() ||
+      (i.shortName && i.shortName.toLowerCase() === f.name.toLowerCase())
+    );
+
+    if (dbEntry) {
+      // Match found in DB — update or create session item using DB settings
+      const ex = S.items.find(i => i.dbId === dbEntry.id);
+      if (ex) {
+        ex.qty = f.qty;
+      } else {
+        S.items.push({
+          id: uid(), dbId: dbEntry.id,
+          name: dbEntry.name, shortName: dbEntry.shortName || dbEntry.name,
+          tier: dbEntry.tier, perMemberLimit: dbEntry.perMemberLimit,
+          hasCD: dbEntry.hasCD, cdDays: dbEntry.cdDays,
+          qty: f.qty
+        });
+      }
+    } else {
+      // Not in DB — create temporary session item
+      const ex = S.items.find(i => i.name === f.name || i.shortName === f.name);
+      if (ex) { ex.qty = f.qty; return; }
       const isPurple = ['黑龍','紅三'].includes(f.name);
-      // If rawInput differs from canonical name, use rawInput as shortName
       const shortName = (f.rawInput && f.rawInput !== f.name) ? f.rawInput : f.name;
       S.items.push({
-        id: uid(), name: f.name, shortName, qty: f.qty,
+        id: uid(), dbId: null,
+        name: f.name, shortName,
         tier: isPurple ? 'purple' : 'blue',
         perMemberLimit: isPurple ? 1 : 2,
-        hasCD: CD_ITEMS.has(f.name),
-        cdDays: 3
+        hasCD: CD_ITEMS.has(f.name), cdDays: 3,
+        qty: f.qty
       });
     }
   });
@@ -738,7 +761,13 @@ function editCD(itemId, e) {
   if (v === null) return;
   const d = parseInt(v);
   if (isNaN(d) || d < 1) { alert('請輸入有效天數'); return; }
-  item.cdDays = d; save(); renderLootGrid();
+  item.cdDays = d;
+  // Sync back to itemDB if linked
+  if (item.dbId) {
+    const dbEntry = S.itemDB.find(i=>i.id===item.dbId);
+    if (dbEntry) dbEntry.cdDays = d;
+  }
+  save(); renderLootGrid();
   if (currentTab===3) renderCD();
 }
 
@@ -1049,20 +1078,20 @@ function addItem() {
   const hasCD = document.getElementById('newItemCD').checked;
   const cdDays = hasCD ? (parseInt(document.getElementById('newItemCDDays').value)||3) : 3;
   if (!name) return;
+  if (S.itemDB.find(i => i.name === name)) { alert('此戰利品名稱已存在'); return; }
   const perMemberLimit = tier === 'purple' ? 1 : 2;
-  // Use shortName as display name if provided, else use name
-  const displayName = shortName || name;
-  S.items.push({id:uid(), name, shortName: shortName||name, displayName, qty, tier, perMemberLimit, hasCD, cdDays});
+  const id = uid();
+  S.itemDB.push({id, name, shortName: shortName||name, tier, perMemberLimit, hasCD, cdDays});
   document.getElementById('newItemName').value = '';
   document.getElementById('newItemShort').value = '';
   document.getElementById('newItemCD').checked = false; toggleCDInput();
-  document.getElementById('lootSection').style.display = '';
-  save(); renderSettings(); renderLootGrid();
+  save(); renderSettings();
 }
 
 function removeItem(id) {
-  if (!confirm('確認刪除此戰利品？')) return;
-  S.items = S.items.filter(i=>i.id!==id);
+  if (!confirm('確認從資料庫刪除此戰利品？相關競標紀錄也會刪除。')) return;
+  S.itemDB = S.itemDB.filter(i=>i.id!==id);
+  S.items = S.items.filter(i=>i.dbId!==id && i.id!==id);
   S.bids = S.bids.filter(b=>b.itemId!==id);
   if (selectedItemId===id) selectedItemId=null;
   save(); renderSettings(); renderLootGrid();
@@ -1154,34 +1183,36 @@ function getMemberEffectiveCDDays(member, itemCDDays) {
 }
 
 function editItemShortName(id) {
-  const item = S.items.find(i=>i.id===id);
+  const item = S.itemDB.find(i=>i.id===id);
   if (!item) return;
   const v = prompt(`「${item.name}」的簡稱（目前：${item.shortName||item.name}）\n留空表示使用全名：`, item.shortName===item.name?'':item.shortName||'');
   if (v===null) return;
   item.shortName = v.trim()||item.name;
+  // Also update any active session items referencing this DB entry
+  S.items.filter(i=>i.dbId===id).forEach(i=>{ i.shortName = item.shortName; });
   save(); renderSettings();
 }
 
 function renderSettings() {
-  // Items
+  // Items (from permanent DB)
   const il = document.getElementById('itemManageList');
-  il.innerHTML = S.items.length ? S.items.map(item => {
-    const claimed = S.bids.filter(b=>b.itemId===item.id).length;
+  il.innerHTML = S.itemDB.length ? S.itemDB.map(item => {
     const tierLabel = item.tier==='purple'
       ? '<span class="pill pill-purple" style="font-size:0.6rem;">🟣 紫</span>'
       : '<span class="pill" style="font-size:0.6rem;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);">🔵 藍</span>';
     const hasShort = item.shortName && item.shortName !== item.name;
     const shortLabel = hasShort
       ? `<span style="color:var(--text3);font-size:0.68rem;"> → 簡稱「${item.shortName}」</span>` : '';
+    const cdLabel = item.hasCD ? ` <span class="pill pill-cd" style="font-size:0.6rem;">CD ${item.cdDays}天</span>` : '';
     return `<div class="manage-row" style="flex-wrap:wrap;gap:4px;align-items:flex-start;">
       <div style="flex:1;min-width:120px;">
-        <div style="font-weight:700;font-size:0.82rem;">${item.name} ${tierLabel}${item.hasCD?` <span class="pill pill-cd" style="font-size:0.6rem;">CD ${item.cdDays}天</span>`:''}</div>
-        <div style="line-height:1.6;">${shortLabel}<span style="color:var(--text3);font-size:0.68rem;"> ${claimed}/${item.qty}</span></div>
+        <div style="font-weight:700;font-size:0.82rem;">${item.name} ${tierLabel}${cdLabel}</div>
+        <div style="line-height:1.6;">${shortLabel}</div>
       </div>
       <button class="btn btn-gray btn-sm" onclick="editItemShortName('${item.id}')">簡稱</button>
       <button class="btn btn-red btn-sm" onclick="removeItem('${item.id}')">刪除</button>
     </div>`;
-  }).join('') : '<div style="color:var(--text3);font-size:0.8rem;text-align:center;padding:10px 0;">尚無戰利品</div>';
+  }).join('') : '<div style="color:var(--text3);font-size:0.8rem;text-align:center;padding:10px 0;">尚無戰利品（設定後永久保存）</div>';
 
   // Groups
   const gl = document.getElementById('groupManageList');
@@ -1212,15 +1243,29 @@ function renderSettings() {
   }).join('');
 }
 
+function clearLoot() {
+  document.getElementById('pasteInput').value = '';
+  document.getElementById('lootSection').style.display = 'none';
+  S.items = []; selectedItemId = null;
+  save(); renderLootGrid();
+}
+
 function clearBids() {
-  if (!confirm('確認清除本場所有競標紀錄？')) return;
-  S.bids = []; save(); renderAll();
+  if (!confirm('確認清除本場所有競標紀錄？（戰利品資料庫不受影響）')) return;
+  S.bids = []; S.items = []; selectedItemId = null;
+  save(); renderAll();
 }
 
 function clearAll() {
-  if (!confirm('⚠️ 清除所有資料？')) return;
+  if (!confirm('⚠️ 清除所有場次資料？（戰利品資料庫和成員設定會保留）')) return;
+  S.bids = []; S.items = []; S.session = null; selectedItemId = null;
+  save(); renderAll();
+}
+
+function resetEverything() {
+  if (!confirm('⚠️ 完全重置所有資料（包含戰利品資料庫、成員、群組）？')) return;
   S = {
-    items:[], bids:[], session:null,
+    itemDB: [], items: [], bids: [], session: null,
     members: REAL_MEMBERS.map((n,i)=>({id:'m'+i, name:n, groupId:null})),
     groups: [{id:'g0',name:'管理員',cdDays:2},{id:'g1',name:'一般成員',cdDays:3}],
   };
