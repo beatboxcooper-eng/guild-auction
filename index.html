@@ -430,16 +430,24 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
   <div class="card">
     <div class="card-title">👥 成員管理 <span id="memberCountBadge" style="color:var(--text3);font-weight:400;font-size:0.72rem;"></span></div>
     <button class="btn btn-purple btn-sm btn-full" style="margin-bottom:10px;" onclick="loadRealMembers()">重新載入75位成員名單</button>
-    <div style="display:flex;gap:8px;margin-bottom:10px;">
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
       <input type="text" id="newMemberName" placeholder="新增成員名稱" style="flex:2;" onkeydown="if(event.key==='Enter')addMember()">
-      <select id="newMemberGroup" style="flex:1;" id="newMemberGroup"></select>
+      <select id="newMemberGroup" style="flex:1;"></select>
       <button class="btn btn-purple btn-sm" onclick="addMember()">新增</button>
     </div>
-    <div id="memberManageList" style="max-height:320px;overflow-y:auto;"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+      <label style="font-size:0.75rem;color:var(--text2);white-space:nowrap;">篩選群組：</label>
+      <select id="memberFilterGroup" style="flex:1;" onchange="renderMemberManageList()">
+        <option value="all">全部成員</option>
+        <option value="none">無群組</option>
+      </select>
+      <span id="memberFilterCount" style="font-size:0.72rem;color:var(--text3);white-space:nowrap;"></span>
+    </div>
+    <div id="memberManageList" style="max-height:360px;overflow-y:auto;"></div>
   </div>
 </div>
 
-<!-- MODAL -->
+<!-- MODAL: bid -->
 <div class="modal-bg" id="bidModal" style="display:none;" onclick="if(event.target===this)closeModal()">
   <div class="modal">
     <h3>🏷 登記競標</h3>
@@ -458,6 +466,74 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="modal-actions">
       <button class="btn btn-gray" style="flex:1;" onclick="closeModal()">取消</button>
       <button class="btn btn-gold" style="flex:2;" onclick="confirmBid()">✓ 確認競標</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: edit item shortname -->
+<div class="modal-bg" id="shortNameModal" style="display:none;" onclick="if(event.target===this)closeShortNameModal()">
+  <div class="modal">
+    <h3>🏷 修改簡稱</h3>
+    <div class="modal-info" id="shortNameModalInfo"></div>
+    <div class="settings-row">
+      <label class="settings-label">簡稱</label>
+      <input type="text" id="shortNameInput" placeholder="留空則使用全名" style="flex:1;">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" style="flex:1;" onclick="closeShortNameModal()">取消</button>
+      <button class="btn btn-gold" style="flex:2;" onclick="confirmShortName()">✓ 確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: edit item CD days -->
+<div class="modal-bg" id="itemCDModal" style="display:none;" onclick="if(event.target===this)closeItemCDModal()">
+  <div class="modal">
+    <h3>⏳ 修改物品CD天數</h3>
+    <div class="modal-info" id="itemCDModalInfo"></div>
+    <div class="settings-row">
+      <label class="settings-label">CD天數</label>
+      <input type="number" id="itemCDInput" min="1" max="30" style="flex:1;">
+      <span style="font-size:0.8rem;color:var(--text2);margin-left:4px;">天</span>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" style="flex:1;" onclick="closeItemCDModal()">取消</button>
+      <button class="btn btn-gold" style="flex:2;" onclick="confirmItemCD()">✓ 確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: edit group CD -->
+<div class="modal-bg" id="groupCDModal" style="display:none;" onclick="if(event.target===this)closeGroupCDModal()">
+  <div class="modal">
+    <h3>⏳ 修改群組CD天數</h3>
+    <div class="modal-info" id="groupCDModalInfo"></div>
+    <div class="settings-row">
+      <label class="settings-label">CD天數</label>
+      <input type="number" id="groupCDInput" min="1" max="30" style="flex:1;">
+      <span style="font-size:0.8rem;color:var(--text2);margin-left:4px;">天</span>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" style="flex:1;" onclick="closeGroupCDModal()">取消</button>
+      <button class="btn btn-gold" style="flex:2;" onclick="confirmGroupCD()">✓ 確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: edit member group -->
+<div class="modal-bg" id="memberGroupModal" style="display:none;" onclick="if(event.target===this)closeMemberGroupModal()">
+  <div class="modal">
+    <h3>👥 設定成員群組</h3>
+    <div class="modal-info" id="memberGroupModalInfo"></div>
+    <div class="settings-row">
+      <label class="settings-label">群組</label>
+      <select id="memberGroupSelect" style="flex:1;">
+        <option value="">無群組</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" style="flex:1;" onclick="closeMemberGroupModal()">取消</button>
+      <button class="btn btn-gold" style="flex:2;" onclick="confirmMemberGroup()">✓ 確認</button>
     </div>
   </div>
 </div>
@@ -754,18 +830,31 @@ function selectLoot(id) {
 
 function editCD(itemId, e) {
   e.stopPropagation();
-  const item = S.items.find(i => i.id === itemId);
+  const item = S.items.find(i=>i.id===itemId);
   if (!item) return;
-  const v = prompt(`「${item.name}」CD天數（目前${item.cdDays||3}天）：`, item.cdDays||3);
-  if (v === null) return;
-  const d = parseInt(v);
-  if (isNaN(d) || d < 1) { alert('請輸入有效天數'); return; }
+  document.getElementById('itemCDModalInfo').innerHTML =
+    `物品：<strong>${item.name}</strong>`;
+  document.getElementById('itemCDInput').value = item.cdDays || 3;
+  document.getElementById('itemCDModal')._targetId = itemId;
+  document.getElementById('itemCDModal').style.display = 'flex';
+}
+
+function closeItemCDModal() {
+  document.getElementById('itemCDModal').style.display = 'none';
+}
+
+function confirmItemCD() {
+  const itemId = document.getElementById('itemCDModal')._targetId;
+  const item = S.items.find(i=>i.id===itemId);
+  if (!item) return;
+  const d = parseInt(document.getElementById('itemCDInput').value);
+  if (isNaN(d)||d<1) { alert('請輸入有效天數'); return; }
   item.cdDays = d;
-  // Sync back to itemDB if linked
   if (item.dbId) {
     const dbEntry = S.itemDB.find(i=>i.id===item.dbId);
     if (dbEntry) dbEntry.cdDays = d;
   }
+  closeItemCDModal();
   save(); renderLootGrid();
   if (currentTab===3) renderCD();
 }
@@ -1116,11 +1205,25 @@ function removeGroup(id) {
 function editGroupCD(id) {
   const g = S.groups.find(g=>g.id===id);
   if (!g) return;
-  const v = prompt(`「${g.name}」的CD天數（目前${g.cdDays}天）：`, g.cdDays);
-  if (v===null) return;
-  const d = parseInt(v);
+  document.getElementById('groupCDModalInfo').innerHTML =
+    `群組：<strong>${g.name}</strong>`;
+  document.getElementById('groupCDInput').value = g.cdDays;
+  document.getElementById('groupCDModal')._targetId = id;
+  document.getElementById('groupCDModal').style.display = 'flex';
+}
+
+function closeGroupCDModal() {
+  document.getElementById('groupCDModal').style.display = 'none';
+}
+
+function confirmGroupCD() {
+  const id = document.getElementById('groupCDModal')._targetId;
+  const g = S.groups.find(g=>g.id===id);
+  if (!g) return;
+  const d = parseInt(document.getElementById('groupCDInput').value);
   if (isNaN(d)||d<1) { alert('請輸入有效天數'); return; }
   g.cdDays = d;
+  closeGroupCDModal();
   save(); renderSettings();
 }
 
@@ -1150,18 +1253,26 @@ function removeMember(id) {
 function editMemberGroup(id) {
   const m = S.members.find(m=>m.id===id);
   if (!m) return;
-  const options = ['無群組', ...S.groups.map(g=>`${g.name}（CD ${g.cdDays}天）`)];
-  const current = m.groupId ? S.groups.findIndex(g=>g.id===m.groupId)+1 : 0;
-  const v = prompt(
-    `「${m.name}」群組設定\n\n` +
-    options.map((o,i)=>`${i===current?'▶ ':'  '}${i}. ${o}`).join('\n') +
-    `\n\n輸入數字選擇（目前：${current}）：`,
-    current
-  );
-  if (v===null) return;
-  const idx = parseInt(v);
-  if (isNaN(idx)||idx<0||idx>S.groups.length) { alert('請輸入有效數字'); return; }
-  m.groupId = idx===0 ? null : S.groups[idx-1].id;
+  document.getElementById('memberGroupModalInfo').innerHTML =
+    `成員：<strong>${m.name}</strong>`;
+  const sel = document.getElementById('memberGroupSelect');
+  sel.innerHTML = `<option value="">無群組</option>` +
+    S.groups.map(g=>`<option value="${g.id}">${g.name}（CD ${g.cdDays}天）</option>`).join('');
+  sel.value = m.groupId || '';
+  document.getElementById('memberGroupModal')._targetId = id;
+  document.getElementById('memberGroupModal').style.display = 'flex';
+}
+
+function closeMemberGroupModal() {
+  document.getElementById('memberGroupModal').style.display = 'none';
+}
+
+function confirmMemberGroup() {
+  const id = document.getElementById('memberGroupModal')._targetId;
+  const m = S.members.find(m=>m.id===id);
+  if (!m) return;
+  m.groupId = document.getElementById('memberGroupSelect').value || null;
+  closeMemberGroupModal();
   save(); renderSettings(); renderMemberGrid();
 }
 
@@ -1183,11 +1294,26 @@ function getMemberEffectiveCDDays(member, itemCDDays) {
 function editItemShortName(id) {
   const item = S.itemDB.find(i=>i.id===id);
   if (!item) return;
-  const v = prompt(`「${item.name}」的簡稱（目前：${item.shortName||item.name}）\n留空表示使用全名：`, item.shortName===item.name?'':item.shortName||'');
-  if (v===null) return;
-  item.shortName = v.trim()||item.name;
-  // Also update any active session items referencing this DB entry
+  document.getElementById('shortNameModalInfo').innerHTML =
+    `物品：<strong>${item.name}</strong>`;
+  document.getElementById('shortNameInput').value =
+    (item.shortName && item.shortName !== item.name) ? item.shortName : '';
+  document.getElementById('shortNameModal')._targetId = id;
+  document.getElementById('shortNameModal').style.display = 'flex';
+}
+
+function closeShortNameModal() {
+  document.getElementById('shortNameModal').style.display = 'none';
+}
+
+function confirmShortName() {
+  const id = document.getElementById('shortNameModal')._targetId;
+  const item = S.itemDB.find(i=>i.id===id);
+  if (!item) return;
+  const v = document.getElementById('shortNameInput').value.trim();
+  item.shortName = v || item.name;
   S.items.filter(i=>i.dbId===id).forEach(i=>{ i.shortName = item.shortName; });
+  closeShortNameModal();
   save(); renderSettings();
 }
 
@@ -1212,24 +1338,58 @@ function renderSettings() {
     </div>`;
   }).join('') : '<div style="color:var(--text3);font-size:0.8rem;text-align:center;padding:10px 0;">尚無戰利品（設定後永久保存）</div>';
 
-  // Groups
+  // Groups — show member count per group
   const gl = document.getElementById('groupManageList');
   if (gl) {
-    gl.innerHTML = S.groups.length ? S.groups.map(g =>
-      `<div class="manage-row">
-        <span style="font-weight:700;font-size:0.85rem;flex:1;">${g.name}</span>
+    gl.innerHTML = S.groups.length ? S.groups.map(g => {
+      const count = S.members.filter(m => m.groupId === g.id).length;
+      return `<div class="manage-row">
+        <div style="flex:1;">
+          <span style="font-weight:700;font-size:0.85rem;">${g.name}</span>
+          <span style="font-size:0.72rem;color:var(--text3);margin-left:6px;">${count} 人</span>
+        </div>
         <span class="pill pill-cd" style="font-size:0.65rem;margin-right:6px;">CD ${g.cdDays}天</span>
         <button class="btn btn-gray btn-sm" style="margin-right:4px;" onclick="editGroupCD('${g.id}')">修改天數</button>
         <button class="btn btn-red btn-sm" onclick="removeGroup('${g.id}')">刪除</button>
-      </div>`
-    ).join('') : '<div style="color:var(--text3);font-size:0.8rem;text-align:center;padding:8px 0;">尚無群組</div>';
+      </div>`;
+    }).join('') : '<div style="color:var(--text3);font-size:0.8rem;text-align:center;padding:8px 0;">尚無群組</div>';
   }
 
   // Members
+  const noGroupCount = S.members.filter(m => !m.groupId).length;
   document.getElementById('memberCountBadge').textContent = `${S.members.length} 人`;
   renderNewMemberGroupSelect();
-  document.getElementById('memberManageList').innerHTML = S.members.map(m => {
-    const grp = m.groupId ? S.groups.find(g=>g.id===m.groupId) : null;
+  updateMemberFilterSelect();
+  renderMemberManageList();
+}
+
+function updateMemberFilterSelect() {
+  const sel = document.getElementById('memberFilterGroup');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = `<option value="all">全部成員</option><option value="none">無群組</option>` +
+    S.groups.map(g => {
+      const cnt = S.members.filter(m => m.groupId === g.id).length;
+      return `<option value="${g.id}">${g.name}（${cnt}人）</option>`;
+    }).join('');
+  // Restore previous selection if still valid
+  if ([...sel.options].some(o => o.value === current)) sel.value = current;
+}
+
+function renderMemberManageList() {
+  const sel = document.getElementById('memberFilterGroup');
+  const filter = sel ? sel.value : 'all';
+  let filtered = S.members;
+  if (filter === 'none') {
+    filtered = S.members.filter(m => !m.groupId);
+  } else if (filter !== 'all') {
+    filtered = S.members.filter(m => m.groupId === filter);
+  }
+  const countEl = document.getElementById('memberFilterCount');
+  if (countEl) countEl.textContent = filter === 'all' ? '' : `${filtered.length} 人`;
+
+  document.getElementById('memberManageList').innerHTML = filtered.length ? filtered.map(m => {
+    const grp = m.groupId ? S.groups.find(g => g.id === m.groupId) : null;
     const grpLabel = grp
       ? `<span class="pill pill-purple" style="font-size:0.6rem;">${grp.name}</span>`
       : `<span style="font-size:0.65rem;color:var(--text3);">無群組</span>`;
@@ -1238,7 +1398,7 @@ function renderSettings() {
       <button class="btn btn-gray btn-sm" style="margin-right:4px;" onclick="editMemberGroup('${m.id}')">群組</button>
       <button class="btn btn-red btn-sm" onclick="removeMember('${m.id}')">移除</button>
     </div>`;
-  }).join('');
+  }).join('') : '<div style="color:var(--text3);font-size:0.8rem;text-align:center;padding:12px 0;">無符合成員</div>';
 }
 
 function clearLoot() {
