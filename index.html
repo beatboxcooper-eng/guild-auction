@@ -630,12 +630,12 @@ function initFirebase() {
     startFirebase();
   } else {
     document.addEventListener('fb-ready', startFirebase, {once: true});
-    // If Firebase config is placeholder, show setup banner
+    // If Firebase config is placeholder, show setup banner after timeout
     setTimeout(() => {
       if (!fbReady) {
         document.getElementById('setupBanner').style.display = '';
         setSyncUI('err');
-        loadLocal();
+        // Don't call loadLocal here — already called at init
       }
     }, 3000);
   }
@@ -705,6 +705,11 @@ function loadLocal() {
 // ===== INIT =====
 document.getElementById('sessionDate').value = new Date().toISOString().split('T')[0];
 document.getElementById('modalDate').value = new Date().toISOString().split('T')[0];
+
+// Always load localStorage first — this ensures data shows immediately on refresh
+loadLocal();
+
+// Then attempt Firebase sync on top
 initFirebase();
 
 // ===== SESSION =====
