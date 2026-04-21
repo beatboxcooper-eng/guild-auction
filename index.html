@@ -526,15 +526,12 @@ const CD_ITEMS = new Set(['黑龍','紅三']);
 // itemDB = permanent item definitions (name, shortName, tier, CD settings)
 // items  = per-session active items with qty (populated by parseLoot)
 let S = {
-  itemDB: [],   // permanent — never cleared by clearBids
-  items: [],    // per-session (has qty, references itemDB via id match)
+  itemDB: [],
+  items: [],
   members: REAL_MEMBERS.map((n,i) => ({id:'m'+i, name:n, groupId:null})),
   bids: [],
   session: null,
-  groups: [
-    {id:'g0', name:'管理員', cdDays:2},
-    {id:'g1', name:'一般成員', cdDays:3},
-  ],
+  groups: [],  // no defaults — user manages their own groups
 };
 let selectedItemId = null;
 let pendingBid = null;
@@ -580,12 +577,12 @@ function startFirebase() {
 }
 
 function mergeRemote(data) {
-  if (data.itemDB !== undefined) S.itemDB = data.itemDB;
-  if (data.items !== undefined) S.items = data.items;
-  if (data.bids !== undefined) S.bids = data.bids;
+  if (data.itemDB !== undefined) S.itemDB = data.itemDB || [];
+  if (data.items !== undefined) S.items = data.items || [];
+  if (data.bids !== undefined) S.bids = data.bids || [];
   if (data.session !== undefined) S.session = data.session;
-  if (data.members && data.members.length > 0) S.members = data.members;
-  if (data.groups && data.groups.length > 0) S.groups = data.groups;
+  if (data.members !== undefined) S.members = data.members || [];
+  if (data.groups !== undefined) S.groups = data.groups || [];
   renderAll();
 }
 
@@ -618,10 +615,12 @@ function loadLocal() {
   if (raw) {
     try {
       const d = JSON.parse(raw);
-      if (d.items) S.items = d.items;
-      if (d.bids) S.bids = d.bids;
+      if (d.itemDB !== undefined) S.itemDB = d.itemDB || [];
+      if (d.items !== undefined) S.items = d.items || [];
+      if (d.bids !== undefined) S.bids = d.bids || [];
       if (d.session) S.session = d.session;
-      if (d.members && d.members.length > 0) S.members = d.members;
+      if (d.members !== undefined) S.members = d.members || [];
+      if (d.groups !== undefined) S.groups = d.groups || [];
     } catch(e) {}
   }
   renderAll();
@@ -1266,7 +1265,7 @@ function resetEverything() {
   S = {
     itemDB: [], items: [], bids: [], session: null,
     members: REAL_MEMBERS.map((n,i)=>({id:'m'+i, name:n, groupId:null})),
-    groups: [{id:'g0',name:'管理員',cdDays:2},{id:'g1',name:'一般成員',cdDays:3}],
+    groups: [],
   };
   selectedItemId = null; save(); renderAll();
 }
