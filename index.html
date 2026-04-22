@@ -5,20 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>聯盟競拍系統</title>
 
-<!-- ✅ 步驟3: 把下面這段換成你的 Firebase 設定 -->
+<!-- Firebase 已設定 -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, onValue, set, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-  // 🔧 把這裡換成你的 Firebase 設定（從 Firebase Console 複製）
   const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    databaseURL: "https://YOUR_PROJECT-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "YOUR_PROJECT",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyB-CA8ML-scmJLKak9Dd2U6JR50FFKkTGM",
+    authDomain: "game-cd47a.firebaseapp.com",
+    databaseURL: "https://game-cd47a-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "game-cd47a",
+    storageBucket: "game-cd47a.firebasestorage.app",
+    messagingSenderId: "945929007516",
+    appId: "1:945929007516:web:4363867cd435f361265859"
   };
 
   const app = initializeApp(firebaseConfig);
@@ -308,6 +307,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
   </div>
 
   <div class="card">
+    <div class="card-title">📝 共用筆記 <span style="color:var(--text3);font-weight:400;font-size:0.7rem;">所有成員可見</span></div>
+    <textarea id="notesArea" rows="4" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:10px;font-size:0.85rem;font-family:inherit;color:var(--text);resize:vertical;line-height:1.6;" placeholder="在這裡記錄競標注意事項、場次安排、公告等..." oninput="saveNotes()"></textarea>
+  </div>
+
+  <div class="card">
     <div class="card-title">📋 貼上戰利品統計</div>
     <textarea class="parse-area" id="pasteInput" rows="3" placeholder="貼上格式：黑龍 3。紅三 1。紅二 5。水元素 4。火元素 3。狂暴 4。叢林 1。射手 7。護衛 1。食人魔 5。刺客 6。地精 2。紅一 11。"></textarea>
     <div style="display:flex;gap:8px;margin-top:8px;">
@@ -320,7 +324,17 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="notice" id="selHint">← 點選下方戰利品，再選成員登記競標</div>
     <div class="loot-grid" id="lootGrid"></div>
     <div class="card" style="margin-top:12px;">
-      <div class="card-title">👥 選擇成員</div>
+      <div class="card-title" style="justify-content:space-between;">
+        <span>👥 選擇成員</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.72rem;color:var(--text2);font-weight:400;">
+            <input type="radio" name="memberDisplay" value="short" checked onchange="renderMemberGrid()"> 簡稱
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.72rem;color:var(--text2);font-weight:400;">
+            <input type="radio" name="memberDisplay" value="full" onchange="renderMemberGrid()"> 全名
+          </label>
+        </div>
+      </div>
       <input type="text" class="member-search" id="memberSearch" placeholder="搜尋成員名稱..." oninput="renderMemberGrid()">
       <div class="member-grid" id="memberGrid"></div>
     </div>
@@ -430,8 +444,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
   <div class="card">
     <div class="card-title">👥 成員管理 <span id="memberCountBadge" style="color:var(--text3);font-weight:400;font-size:0.72rem;"></span></div>
     <button class="btn btn-purple btn-sm btn-full" style="margin-bottom:10px;" onclick="loadRealMembers()">重新載入75位成員名單</button>
+    <div style="display:flex;gap:8px;margin-bottom:6px;">
+      <input type="text" id="newMemberName" placeholder="成員名稱（全名）" style="flex:2;" onkeydown="if(event.key==='Enter')addMember()">
+      <input type="text" id="newMemberShort" placeholder="簡稱（選填）" style="flex:1;">
+    </div>
     <div style="display:flex;gap:8px;margin-bottom:8px;">
-      <input type="text" id="newMemberName" placeholder="新增成員名稱" style="flex:2;" onkeydown="if(event.key==='Enter')addMember()">
       <select id="newMemberGroup" style="flex:1;"></select>
       <button class="btn btn-purple btn-sm" onclick="addMember()">新增</button>
     </div>
@@ -499,6 +516,42 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
     <div class="modal-actions">
       <button class="btn btn-gray" style="flex:1;" onclick="closeItemCDModal()">取消</button>
       <button class="btn btn-gold" style="flex:2;" onclick="confirmItemCD()">✓ 確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: rename member -->
+<div class="modal-bg" id="memberRenameModal" style="display:none;" onclick="if(event.target===this)closeMemberRenameModal()">
+  <div class="modal">
+    <h3>✏️ 修改成員名稱</h3>
+    <div class="modal-info" id="memberRenameModalInfo"></div>
+    <div class="settings-row">
+      <label class="settings-label">全名</label>
+      <input type="text" id="memberRenameInput" placeholder="新的成員名稱" style="flex:1;">
+    </div>
+    <div class="settings-row">
+      <label class="settings-label">簡稱</label>
+      <input type="text" id="memberRenameShortInput" placeholder="簡稱（選填）" style="flex:1;">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" style="flex:1;" onclick="closeMemberRenameModal()">取消</button>
+      <button class="btn btn-gold" style="flex:2;" onclick="confirmMemberRename()">✓ 確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: edit member shortname -->
+<div class="modal-bg" id="memberShortModal" style="display:none;" onclick="if(event.target===this)closeMemberShortModal()">
+  <div class="modal">
+    <h3>✏️ 修改成員簡稱</h3>
+    <div class="modal-info" id="memberShortModalInfo"></div>
+    <div class="settings-row">
+      <label class="settings-label">簡稱</label>
+      <input type="text" id="memberShortInput" placeholder="留空則顯示全名" style="flex:1;">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" style="flex:1;" onclick="closeMemberShortModal()">取消</button>
+      <button class="btn btn-gold" style="flex:2;" onclick="confirmMemberShort()">✓ 確認</button>
     </div>
   </div>
 </div>
@@ -607,7 +660,8 @@ let S = {
   members: REAL_MEMBERS.map((n,i) => ({id:'m'+i, name:n, groupId:null})),
   bids: [],
   session: null,
-  groups: [],  // no defaults — user manages their own groups
+  groups: [],
+  notes: '',  // shared notepad
 };
 let selectedItemId = null;
 let pendingBid = null;
@@ -659,13 +713,12 @@ function mergeRemote(data) {
   if (data.session !== undefined) S.session = data.session;
   if (data.members !== undefined) S.members = data.members || [];
   if (data.groups !== undefined) S.groups = data.groups || [];
+  if (data.notes !== undefined) S.notes = data.notes || '';
   renderAll();
 }
 
 function save() {
-  // Always save to localStorage as backup
   localStorage.setItem('ga_backup', JSON.stringify(S));
-
   if (!fbReady) return;
   isSaving = true;
   setSyncUI('ing');
@@ -676,6 +729,7 @@ function save() {
     session: S.session,
     members: S.members,
     groups: S.groups,
+    notes: S.notes,
     updatedAt: Date.now()
   }).then(() => {
     setSyncUI('on');
@@ -697,6 +751,7 @@ function loadLocal() {
       if (d.session) S.session = d.session;
       if (d.members !== undefined) S.members = d.members || [];
       if (d.groups !== undefined) S.groups = d.groups || [];
+      if (d.notes !== undefined) S.notes = d.notes || '';
     } catch(e) {}
   }
   renderAll();
@@ -882,12 +937,16 @@ function renderMemberGrid() {
   const search = (document.getElementById('memberSearch')?.value||'').toLowerCase();
   const grid = document.getElementById('memberGrid');
   if (!grid) return;
-  const filtered = S.members.filter(m => m.name.toLowerCase().includes(search));
+  const filtered = S.members.filter(m =>
+    m.name.toLowerCase().includes(search) ||
+    (m.shortName && m.shortName.toLowerCase().includes(search))
+  );
   grid.innerHTML = filtered.map(m => {
     const bc = S.bids.filter(b => b.memberId === m.id).length;
     const hc = S.bids.some(b => b.memberId === m.id && b.hasCD);
+    const displayName = getMemberDisplayName(m);
     return `<div class="member-chip ${bc>0?'has-bid':''} ${hc?'has-cd':''}" onclick="memberClick('${m.id}')">
-      ${bc>0?`<span class="bid-count">${bc}</span>`:''}${m.name}
+      ${bc>0?`<span class="bid-count">${bc}</span>`:''}${displayName}
     </div>`;
   }).join('');
 }
@@ -969,7 +1028,10 @@ function buildText(ses) {
   return S.items.map(item => {
     const ib = [...bids.filter(b=>b.itemId===item.id)].sort((a,b)=>a.ts-b.ts);
     if (!ib.length) return '';
-    const names = ib.map((b,i) => (S.members.find(m=>m.id===b.memberId)?.name||'?')+(i+1));
+    const names = ib.map((b,i) => {
+      const m = S.members.find(m=>m.id===b.memberId);
+      return (m ? getMemberOutputName(m) : '?') + (i+1);
+    });
     return `${getItemLabel(item)}(${names.join('/')})`;
   }).filter(Boolean).join(' ') || '（尚無競標紀錄）';
 }
@@ -1240,18 +1302,53 @@ function renderNewMemberGroupSelect() {
 }
 
 // ===== MEMBERS =====
+function getMemberDisplayName(m) {
+  const useShort = document.querySelector('input[name="memberDisplay"]:checked')?.value !== 'full';
+  return useShort && m.shortName && m.shortName !== m.name ? m.shortName : m.name;
+}
+
+function getMemberOutputName(m) {
+  const useShort = document.querySelector('input[name="outputName"]:checked')?.value !== 'full';
+  return useShort && m.shortName && m.shortName !== m.name ? m.shortName : m.name;
+}
+
 function addMember() {
   const name = document.getElementById('newMemberName').value.trim();
+  const shortName = document.getElementById('newMemberShort').value.trim();
   const groupId = document.getElementById('newMemberGroup').value || null;
   if (!name) return;
   if (S.members.find(m=>m.name===name)) { alert('名稱已存在'); return; }
-  S.members.push({id:uid(), name, groupId});
+  S.members.push({id:uid(), name, shortName: shortName||name, groupId});
   document.getElementById('newMemberName').value = '';
+  document.getElementById('newMemberShort').value = '';
   save(); renderSettings(); renderMemberGrid();
 }
 
 function removeMember(id) {
   S.members = S.members.filter(m=>m.id!==id);
+  save(); renderSettings(); renderMemberGrid();
+}
+
+function editMemberShort(id) {
+  const m = S.members.find(m=>m.id===id);
+  if (!m) return;
+  document.getElementById('memberShortModalInfo').innerHTML = `成員：<strong>${m.name}</strong>`;
+  document.getElementById('memberShortInput').value = (m.shortName && m.shortName !== m.name) ? m.shortName : '';
+  document.getElementById('memberShortModal')._targetId = id;
+  document.getElementById('memberShortModal').style.display = 'flex';
+}
+
+function closeMemberShortModal() {
+  document.getElementById('memberShortModal').style.display = 'none';
+}
+
+function confirmMemberShort() {
+  const id = document.getElementById('memberShortModal')._targetId;
+  const m = S.members.find(m=>m.id===id);
+  if (!m) return;
+  const v = document.getElementById('memberShortInput').value.trim();
+  m.shortName = v || m.name;
+  closeMemberShortModal();
   save(); renderSettings(); renderMemberGrid();
 }
 
@@ -1398,8 +1495,15 @@ function renderMemberManageList() {
     const grpLabel = grp
       ? `<span class="pill pill-purple" style="font-size:0.6rem;">${grp.name}</span>`
       : `<span style="font-size:0.65rem;color:var(--text3);">無群組</span>`;
-    return `<div class="manage-row">
-      <span style="font-size:0.82rem;flex:1;">${m.name}&nbsp;${grpLabel}</span>
+    const hasShort = m.shortName && m.shortName !== m.name;
+    const shortLabel = hasShort
+      ? `<span style="color:var(--text3);font-size:0.68rem;"> → 簡稱「${m.shortName}」</span>` : '';
+    return `<div class="manage-row" style="flex-wrap:wrap;gap:4px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:0.82rem;font-weight:700;">${m.name}&nbsp;${grpLabel}</div>
+        <div>${shortLabel}</div>
+      </div>
+      <button class="btn btn-gray btn-sm" style="margin-right:4px;" onclick="editMemberName('${m.id}')">改名</button>
       <button class="btn btn-gray btn-sm" style="margin-right:4px;" onclick="editMemberGroup('${m.id}')">群組</button>
       <button class="btn btn-red btn-sm" onclick="removeMember('${m.id}')">移除</button>
     </div>`;
@@ -1435,10 +1539,56 @@ function resetEverything() {
   selectedItemId = null; save(); renderAll();
 }
 
+// ===== NOTES =====
+let notesTimer = null;
+function saveNotes() {
+  S.notes = document.getElementById('notesArea')?.value || '';
+  if (notesTimer) clearTimeout(notesTimer);
+  notesTimer = setTimeout(() => save(), 1000); // debounce 1s
+}
+
+// ===== MEMBER RENAME =====
+function editMemberName(id) {
+  const m = S.members.find(m=>m.id===id);
+  if (!m) return;
+  document.getElementById('memberRenameModalInfo').innerHTML =
+    `目前名稱：<strong>${m.name}</strong>`;
+  document.getElementById('memberRenameInput').value = m.name;
+  document.getElementById('memberRenameShortInput').value =
+    (m.shortName && m.shortName !== m.name) ? m.shortName : '';
+  document.getElementById('memberRenameModal')._targetId = id;
+  document.getElementById('memberRenameModal').style.display = 'flex';
+}
+
+function closeMemberRenameModal() {
+  document.getElementById('memberRenameModal').style.display = 'none';
+}
+
+function confirmMemberRename() {
+  const id = document.getElementById('memberRenameModal')._targetId;
+  const m = S.members.find(m=>m.id===id);
+  if (!m) return;
+  const newName = document.getElementById('memberRenameInput').value.trim();
+  const newShort = document.getElementById('memberRenameShortInput').value.trim();
+  if (!newName) { alert('名稱不能為空'); return; }
+  if (newName !== m.name && S.members.find(x => x.name === newName)) {
+    alert('此名稱已存在'); return;
+  }
+  m.name = newName;
+  m.shortName = newShort || newName;
+  closeMemberRenameModal();
+  save(); renderSettings(); renderMemberGrid();
+}
+
 // ===== RENDER ALL =====
 function renderAll() {
   if (S.items.length) document.getElementById('lootSection').style.display = '';
   if (S.session) setSession(S.session);
+  // Sync notes textarea (only if not focused to avoid disrupting typing)
+  const notesEl = document.getElementById('notesArea');
+  if (notesEl && document.activeElement !== notesEl) {
+    notesEl.value = S.notes || '';
+  }
   renderLootGrid(); renderMemberGrid();
   renderNewMemberGroupSelect();
   if (currentTab===1) renderOutput();
