@@ -443,7 +443,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
   <div class="card">
     <div class="card-title">👥 成員管理 <span id="memberCountBadge" style="color:var(--text3);font-weight:400;font-size:0.72rem;"></span></div>
-    <button class="btn btn-purple btn-sm btn-full" style="margin-bottom:10px;" onclick="loadRealMembers()">重新載入75位成員名單</button>
+    <button class="btn btn-purple btn-sm btn-full" style="margin-bottom:10px;" onclick="loadRealMembers()">重新載入預設成員名單（共 <span id="realMemberCount"></span> 人）</button>
     <div style="display:flex;gap:8px;margin-bottom:6px;">
       <input type="text" id="newMemberName" placeholder="成員名稱（全名）" style="flex:2;" onkeydown="if(event.key==='Enter')addMember()">
       <input type="text" id="newMemberShort" placeholder="簡稱（選填）" style="flex:1;">
@@ -573,6 +573,39 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
   </div>
 </div>
 
+<!-- MODAL: edit item DB entry -->
+<div class="modal-bg" id="editItemModal" style="display:none;" onclick="if(event.target===this)closeEditItemModal()">
+  <div class="modal">
+    <h3>✏️ 編輯戰利品</h3>
+    <div class="settings-row">
+      <label class="settings-label">全名</label>
+      <input type="text" id="editItemName" style="flex:1;">
+    </div>
+    <div class="settings-row">
+      <label class="settings-label">簡稱</label>
+      <input type="text" id="editItemShort" placeholder="留空則使用全名" style="flex:1;">
+    </div>
+    <div class="settings-row">
+      <label class="settings-label">顏色</label>
+      <select id="editItemTier" style="flex:1;">
+        <option value="blue">🔵 藍色（最多2顆）</option>
+        <option value="purple">🟣 紫色（限1顆）</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <label class="cb-row">
+        <input type="checkbox" id="editItemCD" onchange="toggleEditItemCD()"> CD冷卻
+      </label>
+      <input type="number" id="editItemCDDays" value="3" min="1" max="30" style="width:60px;flex:none;display:none;">
+      <span id="editItemCDHint" style="display:none;font-size:0.72rem;color:var(--orange);flex:none;">天</span>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" style="flex:1;" onclick="closeEditItemModal()">取消</button>
+      <button class="btn btn-gold" style="flex:2;" onclick="confirmEditItem()">✓ 確認</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: edit member group -->
 <div class="modal-bg" id="memberGroupModal" style="display:none;" onclick="if(event.target===this)closeMemberGroupModal()">
   <div class="modal">
@@ -594,17 +627,23 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
 <script>
 // ===== REAL MEMBERS =====
 const REAL_MEMBERS = [
-  'MAMA牧','戰聖','茄子教主','懶癢癢','紅姐','天氣晴','胸一抖奶四方',
-  '9527、','Mountain','沃梟','草莓大福','KAI桑','小歪歪','牛排好大塊',
-  '蜂蜜蛋糕喵','牟賀糗','弘暉','小太陽、','Ruru','黑石蒼藍星','小橘',
-  '阿不理波波','木妖王','淼無雙','精靈射手','波奇.1','今晚打老虎','Meteor',
-  '藐神月','藐神夢','來個大三元','夢姨大濕','悠凜','乂雲陌乂','希茵娜',
-  '只剩一顆祖彈','我吊爆你婆婆','優質渣男','SS92','森上梅錢','小力一點','北門彭于晏',
-  '他真的愛你嗎','夯小裕','褲子裡有松鼠','「老ㄟ」','正港天天','休閒','光頭小補師',
-  '來個大四喜','迪諾','老六','白少爺','初聞不知曲中意','天啟','只能打蚊的大炮',
-  'Wu容Jane','民少','熊小子','最強巫師','石皮盾','小奶爸','生活小舖',
-  '暗影的泰坦','騎豬逛大街','花田三路','大支老','DDDD','牛仔喝牛奶','左手迷思',
-  '穎winG','只是玩玩','芭樂綠茶','焦油','noodle',
+  // 執事/管理
+  'MA牧超人','哈利波癢','紅姐','夢姨超人','天氣晴','胸一抖奶四方',
+  // 盟主/副盟主
+  '鹹蛋超人','鄧不利多茄','來個大三元',
+  // 精英
+  '悠凜','9527、','Mountain','沃梟',
+  // 成員
+  '秋天','草莓大福','只剩一掘祖彈','大盜塞布夏',
+  'KAI桑','森上梅錢','優質渣男','含沃德藍教頭','God、羽','阿不理波波','Dark Lord',
+  '各位九隻鳥','褲子裡有松鼠','天啟','Food超人','來個大四喜','淼無雙','最強巫師',
+  '精靈射手','左手迷思',
+  '我吊爆你婆婆','弘暉',
+  '我的貓叫慰慰','蜂蜜蛋糕喵','知花名未聞花香','乂雲陌乂','牛排好大塊','小歪歪','希茵娜',
+  'SS超人','牟賀糗','小力一點','北門彭于晏','休閒','夯小裕','迪諾',
+  '正港天天','光頭擠奶超人','Ruru','小橘','黑石蒼藍星','小太陽、','只能打蚊的大炮',
+  '民少','「老ㄟ」','花無缺','旺仔小奶牛','老六','初聞不知曲中意','石皮盾',
+  '花田三路','DDDD','芭樂綠茶','大支老','Meteor','牛仔喝牛奶','Wu容Jane','noodle',
 ];
 
 // Static fallback aliases (used only when no custom item list defined)
@@ -763,6 +802,10 @@ document.getElementById('modalDate').value = new Date().toISOString().split('T')
 
 // Always load localStorage first — this ensures data shows immediately on refresh
 loadLocal();
+
+// Set real member count display
+const _rmc = document.getElementById('realMemberCount');
+if (_rmc) _rmc.textContent = REAL_MEMBERS.length;
 
 // Then attempt Firebase sync on top
 initFirebase();
@@ -1304,12 +1347,14 @@ function renderNewMemberGroupSelect() {
 // ===== MEMBERS =====
 function getMemberDisplayName(m) {
   const useShort = document.querySelector('input[name="memberDisplay"]:checked')?.value !== 'full';
-  return useShort && m.shortName && m.shortName !== m.name ? m.shortName : m.name;
+  const short = m.shortName && m.shortName.trim() && m.shortName !== m.name ? m.shortName : null;
+  return useShort && short ? short : m.name;
 }
 
 function getMemberOutputName(m) {
   const useShort = document.querySelector('input[name="outputName"]:checked')?.value !== 'full';
-  return useShort && m.shortName && m.shortName !== m.name ? m.shortName : m.name;
+  const short = m.shortName && m.shortName.trim() && m.shortName !== m.name ? m.shortName : null;
+  return useShort && short ? short : m.name;
 }
 
 function addMember() {
@@ -1394,29 +1439,65 @@ function getMemberEffectiveCDDays(member, itemCDDays) {
 }
 
 function editItemShortName(id) {
-  const item = S.itemDB.find(i=>i.id===id);
-  if (!item) return;
-  document.getElementById('shortNameModalInfo').innerHTML =
-    `物品：<strong>${item.name}</strong>`;
-  document.getElementById('shortNameInput').value =
-    (item.shortName && item.shortName !== item.name) ? item.shortName : '';
-  document.getElementById('shortNameModal')._targetId = id;
-  document.getElementById('shortNameModal').style.display = 'flex';
+  // kept for backward compat — now opens full edit modal
+  openEditItemModal(id);
 }
 
-function closeShortNameModal() {
-  document.getElementById('shortNameModal').style.display = 'none';
-}
-
-function confirmShortName() {
-  const id = document.getElementById('shortNameModal')._targetId;
+function openEditItemModal(id) {
   const item = S.itemDB.find(i=>i.id===id);
   if (!item) return;
-  const v = document.getElementById('shortNameInput').value.trim();
-  item.shortName = v || item.name;
-  S.items.filter(i=>i.dbId===id).forEach(i=>{ i.shortName = item.shortName; });
-  closeShortNameModal();
-  save(); renderSettings();
+  document.getElementById('editItemName').value = item.name;
+  document.getElementById('editItemShort').value = (item.shortName && item.shortName !== item.name) ? item.shortName : '';
+  document.getElementById('editItemTier').value = item.tier || 'blue';
+  document.getElementById('editItemCD').checked = item.hasCD || false;
+  document.getElementById('editItemCDDays').value = item.cdDays || 3;
+  toggleEditItemCD();
+  document.getElementById('editItemModal')._targetId = id;
+  document.getElementById('editItemModal').style.display = 'flex';
+}
+
+function closeEditItemModal() {
+  document.getElementById('editItemModal').style.display = 'none';
+}
+
+function toggleEditItemCD() {
+  const c = document.getElementById('editItemCD').checked;
+  document.getElementById('editItemCDDays').style.display = c ? '' : 'none';
+  document.getElementById('editItemCDHint').style.display = c ? '' : 'none';
+}
+
+function confirmEditItem() {
+  const id = document.getElementById('editItemModal')._targetId;
+  const item = S.itemDB.find(i=>i.id===id);
+  if (!item) return;
+  const newName = document.getElementById('editItemName').value.trim();
+  if (!newName) { alert('名稱不能為空'); return; }
+  if (newName !== item.name && S.itemDB.find(i=>i.name===newName)) {
+    alert('此名稱已存在'); return;
+  }
+  const newShort = document.getElementById('editItemShort').value.trim();
+  const newTier = document.getElementById('editItemTier').value;
+  const newHasCD = document.getElementById('editItemCD').checked;
+  const newCDDays = newHasCD ? (parseInt(document.getElementById('editItemCDDays').value)||3) : 3;
+  const newLimit = newTier === 'purple' ? 1 : 2;
+
+  // Update itemDB entry
+  item.name = newName;
+  item.shortName = newShort || newName;
+  item.tier = newTier;
+  item.perMemberLimit = newLimit;
+  item.hasCD = newHasCD;
+  item.cdDays = newCDDays;
+
+  // Sync to any active session items
+  S.items.filter(i=>i.dbId===id).forEach(i=>{
+    i.name = newName; i.shortName = item.shortName;
+    i.tier = newTier; i.perMemberLimit = newLimit;
+    i.hasCD = newHasCD; i.cdDays = newCDDays;
+  });
+
+  closeEditItemModal();
+  save(); renderSettings(); renderLootGrid();
 }
 
 function renderSettings() {
@@ -1435,7 +1516,7 @@ function renderSettings() {
         <div style="font-weight:700;font-size:0.82rem;">${item.name} ${tierLabel}${cdLabel}</div>
         <div style="line-height:1.6;">${shortLabel}</div>
       </div>
-      <button class="btn btn-gray btn-sm" onclick="editItemShortName('${item.id}')">簡稱</button>
+      <button class="btn btn-gray btn-sm" onclick="openEditItemModal('${item.id}')">編輯</button>
       <button class="btn btn-red btn-sm" onclick="removeItem('${item.id}')">刪除</button>
     </div>`;
   }).join('') : '<div style="color:var(--text3);font-size:0.8rem;text-align:center;padding:10px 0;">尚無戰利品（設定後永久保存）</div>';
