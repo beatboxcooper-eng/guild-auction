@@ -843,36 +843,39 @@ function renderSessionResults() {
     html += renderPrioritySection(ses);
   }
 
-  // --- CD unlock (grouped by days left) ---
+  // --- CD unlock (grouped by unlock date) ---
   const cdBids = S.bids.filter(b=>b.hasCD && cdDaysLeft(b)>0);
   if (cdBids.length) {
-    // Deduplicate: keep the bid with most days left per member
+    // Deduplicate per member: keep the bid with most days left
     const deduped = {};
     cdBids.forEach(bid => {
       const left = cdDaysLeft(bid);
       if (!deduped[bid.memberId] || left > deduped[bid.memberId].left)
         deduped[bid.memberId] = {bid, left};
     });
-    // Group by days left
+    // Group by unlock DATE (not days left) — members with different CD lengths
+    // but same unlock date land in the same bucket; different lengths on different dates stay separate
     const groups = {};
     Object.values(deduped).forEach(({bid, left}) => {
-      if (!groups[left]) groups[left] = [];
+      const dateKey = unlockDate(bid); // e.g. "4/25"
+      if (!groups[dateKey]) groups[dateKey] = {left, members:[]};
       const m = getMember(bid.memberId);
-      groups[left].push({name: m ? mName(m,'short') : '?', date: unlockDate(bid)});
+      groups[dateKey].members.push(m ? mName(m,'short') : '?');
     });
-    const sortedDays = Object.keys(groups).map(Number).sort((a,b)=>a-b);
+    // Sort by days left ascending
+    const sortedKeys = Object.keys(groups).sort((a,b) => groups[a].left - groups[b].left);
 
     let cdHtml = `<div class="card"><div class="card-title">⏳ CD解禁日期</div>
-      <div style="display:grid;grid-template-columns:repeat(${Math.min(sortedDays.length,3)},1fr);gap:8px">`;
+      <div style="display:grid;grid-template-columns:repeat(${Math.min(sortedKeys.length,3)},1fr);gap:8px">`;
 
-    sortedDays.forEach((days, idx) => {
-      const entries = groups[days];
-      const date = entries[0].date; // all same unlock date within same days-left group
-      const names = entries.map(e=>e.name).join(' ');
-      const boxId = `cdGroup_${days}`;
+    sortedKeys.forEach(dateKey => {
+      const {left, members} = groups[dateKey];
+      const names = members.join(' ');
+      const copyText = `${dateKey}解禁 ${names}`;
+      const boxId = `cdGroup_${dateKey.replace('/','_')}`;
       cdHtml += `<div style="background:var(--bg);border:1.5px solid var(--orange-bd);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px">
-        <div style="font-size:.72rem;font-weight:900;color:var(--orange);text-align:center">${days}天後 (${date})</div>
-        <div id="${boxId}" style="font-size:.75rem;line-height:1.6;word-break:break-all;flex:1">${names}</div>
+        <div style="font-size:.72rem;font-weight:900;color:var(--orange);text-align:center">${left}天後 (${dateKey})</div>
+        <div id="${boxId}" style="font-size:.75rem;line-height:1.6;word-break:break-all;flex:1">${copyText}</div>
         <button class="copy-btn" style="font-size:.72rem;padding:6px;margin:0" onclick="copyEl('${boxId}',this)">📋 複製</button>
       </div>`;
     });
