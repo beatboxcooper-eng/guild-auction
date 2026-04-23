@@ -174,7 +174,12 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 </div>
 
 <div class="ses-bar">
-  <input type="date" id="sessionDate" oninput="onDateChange(this.value)" onchange="onDateChange(this.value)">
+  <div style="display:flex;align-items:center;gap:6px;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:3px 6px;">
+    <button onclick="shiftDate(-1)" style="background:none;border:none;font-size:1.1rem;cursor:pointer;padding:2px 6px;color:var(--text2);line-height:1">‹</button>
+    <span id="sessionDateDisplay" style="font-size:.82rem;font-weight:700;color:var(--text);min-width:72px;text-align:center"></span>
+    <button onclick="shiftDate(1)" style="background:none;border:none;font-size:1.1rem;cursor:pointer;padding:2px 6px;color:var(--text2);line-height:1">›</button>
+    <button onclick="resetToToday()" style="background:none;border:none;font-size:.65rem;cursor:pointer;padding:2px 5px;color:var(--text3);border-left:1px solid var(--border);margin-left:2px">今天</button>
+  </div>
   <button class="ses-tag" id="btnNoon" onclick="setSession('noon')">☀️ 中午場</button>
   <button class="ses-tag" id="btnEvening" onclick="setSession('evening')">🌙 晚上場</button>
   <button class="ses-tag" id="btnKing" onclick="setSession('king')">👑 聯盟王</button>
@@ -591,33 +596,52 @@ function loadLocal() {
   } catch(e) {}
 }
 
+// ===== DATE =====
+let selectedDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+function getSelectedDate() { return selectedDate; }
+
+function formatDateDisplay(d) {
+  if (!d) return '';
+  const parts = d.split('-');
+  return `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+}
+
+function setSelectedDate(d) {
+  selectedDate = d;
+  const dispEl = document.getElementById('sessionDateDisplay');
+  if (dispEl) dispEl.textContent = formatDateDisplay(d);
+  const modalDateEl = document.getElementById('modalDate');
+  if (modalDateEl) modalDateEl.value = d;
+  renderSessionResults();
+  if (currentTab===1) renderLog();
+  if (currentTab===2) renderCD();
+}
+
+function shiftDate(days) {
+  const parts = selectedDate.split('-');
+  const d = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  setSelectedDate(`${y}-${m}-${day}`);
+}
+
+function resetToToday() {
+  const n = new Date();
+  const y = n.getFullYear();
+  const m = String(n.getMonth()+1).padStart(2,'0');
+  const day = String(n.getDate()).padStart(2,'0');
+  setSelectedDate(`${y}-${m}-${day}`);
+}
+
 // ===== INIT =====
-document.getElementById('sessionDate').value = new Date().toISOString().split('T')[0];
-document.getElementById('modalDate').value = new Date().toISOString().split('T')[0];
-// Ensure date changes trigger re-render on all browsers including iOS Safari
-document.getElementById('sessionDate').addEventListener('change', function() { onDateChange(this.value); });
-document.getElementById('sessionDate').addEventListener('input', function() { onDateChange(this.value); });
+document.getElementById('modalDate').value = selectedDate;
+document.getElementById('sessionDateDisplay').textContent = formatDateDisplay(selectedDate);
 loadLocal();
 renderAll();
 initFirebase();
-
-function getSelectedDate() {
-  const el = document.getElementById('sessionDate');
-  return el ? el.value || new Date().toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-}
-
-function onDateChange(val) {
-  const el = document.getElementById('sessionDate');
-  if (val && el) el.value = val;
-  // Use setTimeout to ensure iOS Safari has finished updating .value
-  setTimeout(() => {
-    const date = getSelectedDate();
-    document.getElementById('modalDate').value = date;
-    renderSessionResults();
-    if (currentTab===1) renderLog();
-    if (currentTab===2) renderCD();
-  }, 100);
-}
 
 // ===== SESSION =====
 function updateSessionUI(s) {
@@ -1403,6 +1427,10 @@ function renderAll() {
   if (S.items.length) document.getElementById('lootSection').style.display='';
   if (S.session) updateSessionUI(S.session);
   if (!viewSession) viewSession = S.session || 'noon';
+
+  // Keep date display in sync
+  const dispEl = document.getElementById('sessionDateDisplay');
+  if (dispEl) dispEl.textContent = formatDateDisplay(selectedDate);
 
   // Sync paste text
   const pasteEl = document.getElementById('pasteInput');
