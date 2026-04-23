@@ -983,16 +983,16 @@ function renderSessionResults() {
     html += renderPrioritySection(ses, selDate);
   }
 
-  // --- CD (based on selected date's bids) ---
-  const cdBids = sesBids.filter(b=>b.hasCD);
-  if (cdBids.length) {
+  // --- CD (所有還在 CD 中的人，不限日期) ---
+  const allCdBids = S.bids.filter(b=>b.hasCD && cdDaysLeft(b)>0);
+  if (allCdBids.length) {
     const deduped = {};
-    cdBids.forEach(bid => {
+    allCdBids.forEach(bid => {
       const left = cdDaysLeft(bid);
       if (!deduped[bid.memberId] || left > deduped[bid.memberId].left)
         deduped[bid.memberId] = {bid, left};
     });
-    const active = Object.values(deduped).filter(x=>x.left>0);
+    const active = Object.values(deduped);
     if (active.length) {
       const groups = {};
       active.forEach(({bid, left}) => {
@@ -1002,7 +1002,7 @@ function renderSessionResults() {
         groups[dateKey].members.push(m ? mName(m,'short') : '?');
       });
       const sortedKeys = Object.keys(groups).sort((a,b) => groups[a].left - groups[b].left);
-      let cdHtml = `<div class="card"><div class="card-title">⏳ CD解禁日期</div>
+      let cdHtml = `<div class="card"><div class="card-title">⏳ CD解禁日期 <span style="font-size:.7rem;color:var(--text3);font-weight:400">（所有場次）</span></div>
         <div style="display:grid;grid-template-columns:repeat(${Math.min(sortedKeys.length,3)},1fr);gap:8px">`;
       sortedKeys.forEach(dateKey => {
         const {left, members} = groups[dateKey];
