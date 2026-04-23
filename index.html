@@ -839,78 +839,94 @@ function renderSessionResults() {
     html += renderPrioritySection(ses);
   }
 
-  // --- CD unlock ---
+  // --- CD unlock (grouped by days left) ---
   const cdBids = S.bids.filter(b=>b.hasCD && cdDaysLeft(b)>0);
   if (cdBids.length) {
+    // Deduplicate: keep the bid with most days left per member
     const deduped = {};
     cdBids.forEach(bid => {
       const left = cdDaysLeft(bid);
       if (!deduped[bid.memberId] || left > deduped[bid.memberId].left)
         deduped[bid.memberId] = {bid, left};
     });
-    const entries = Object.values(deduped).sort((a,b)=>a.left-b.left);
-    const cdText = entries.map(({bid}) => {
+    // Group by days left
+    const groups = {};
+    Object.values(deduped).forEach(({bid, left}) => {
+      if (!groups[left]) groups[left] = [];
       const m = getMember(bid.memberId);
-      return `${m?mName(m,'short'):'?'}(${unlockDate(bid)})`;
-    }).join(' ');
-    html += `<div class="card"><div class="card-title">⏳ CD解禁日期</div>
-      <div class="output-box" id="cdBox0">${cdText}</div>
-      <button class="copy-btn" onclick="copyEl('cdBox0',this)">📋 複製CD名單</button>
-    </div>`;
+      groups[left].push({name: m ? mName(m,'short') : '?', date: unlockDate(bid)});
+    });
+    const sortedDays = Object.keys(groups).map(Number).sort((a,b)=>a-b);
+
+    let cdHtml = `<div class="card"><div class="card-title">⏳ CD解禁日期</div>
+      <div style="display:grid;grid-template-columns:repeat(${Math.min(sortedDays.length,3)},1fr);gap:8px">`;
+
+    sortedDays.forEach((days, idx) => {
+      const entries = groups[days];
+      const date = entries[0].date; // all same unlock date within same days-left group
+      const names = entries.map(e=>e.name).join(' ');
+      const boxId = `cdGroup_${days}`;
+      cdHtml += `<div style="background:var(--bg);border:1.5px solid var(--orange-bd);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:.72rem;font-weight:900;color:var(--orange);text-align:center">${days}天後 (${date})</div>
+        <div id="${boxId}" style="font-size:.75rem;line-height:1.6;word-break:break-all;flex:1">${names}</div>
+        <button class="copy-btn" style="font-size:.72rem;padding:6px;margin:0" onclick="copyEl('${boxId}',this)">📋 複製</button>
+      </div>`;
+    });
+
+    cdHtml += `</div></div>`;
+    html += cdHtml;
   }
 
   el.innerHTML = html;
 }
 
 function renderPrioritySection(ses) {
-  // Round 1 for evening: members who participated in noon OR evening but haven't bid yet
-  // Round 2 for evening: members who bid in noon AND participated in evening
-  // Round 1 for king: members who haven't bid in noon OR evening
-  // We track "participated" via bids — if they bid in noon they participated in noon
-
   const noonBidderIds = new Set(S.bids.filter(b=>b.session==='noon').map(b=>b.memberId));
   const eveningBidderIds = new Set(S.bids.filter(b=>b.session==='evening').map(b=>b.memberId));
-  const kingBidderIds = new Set(S.bids.filter(b=>b.session==='king').map(b=>b.memberId));
-  const allMemberIds = new Set(S.members.map(m=>m.id));
 
   let r1=[], r2=[], title1='', title2='';
 
   if (ses==='evening') {
-    title1 = '🥇 第一輪（優先）— 中午有打未標 ＋ 晚上有打未標';
-    title2 = '🥈 第二輪 — 中午有打有標，晚上也有打';
-    // R1: in allMembers, haven't bid in evening yet, AND (bid in noon but item not gotten OR in evening but not bid)
-    // Simplified: hasn't bid in evening, was active (bid in noon = participated noon)
+    title1 = '🥇 第一輪（優先）';
+    title2 = '🥈 第二輪';
     S.members.forEach(m => {
       if (eveningBidderIds.has(m.id)) {
-        // already bid in evening → R2 if also bid in noon
         if (noonBidderIds.has(m.id)) r2.push(m);
       } else {
-        // hasn't bid in evening yet → R1
         r1.push(m);
       }
     });
   } else if (ses==='king') {
-    title1 = '🥇 第一輪（優先）— 中午/晚上都沒有競標到的人';
-    title2 = '🥈 第二輪 — 中午或晚上有競標過的人';
+    title1 = '🥇 第一輪（優先）';
+    title2 = '🥈 第二輪';
     S.members.forEach(m => {
       const hasBid = noonBidderIds.has(m.id)||eveningBidderIds.has(m.id);
       if (!hasBid) r1.push(m); else r2.push(m);
     });
   }
 
-  const chips = (arr, cls) => arr.map(m=>
-    `<span class="m-chip ${cls}">${mName(m,'short')}</span>`
-  ).join('');
+  const desc1 = ses==='evening' ? '中午有打未標 ＋ 晚上未標' : '中午/晚上都沒競標到';
+  const desc2 = ses==='evening' ? '中午有打有標，晚上也有打' : '中午或晚上有競標過';
+
+  const chips = (arr, cls) => arr.map(m=>`<span class="m-chip ${cls}">${mName(m,'short')}</span>`).join('');
+  const r1Text = r1.map(m=>mName(m,'short')).join(' ');
+  const r2Text = r2.map(m=>mName(m,'short')).join(' ');
+  const r1Id = 'pr1_'+ses;
+  const r2Id = 'pr2_'+ses;
 
   return `<div class="card">
     <div class="card-title">🏆 競標優先順序</div>
     <div class="priority-section">
-      <div class="priority-title" style="color:var(--gold)">${title1} <span style="font-size:.68rem;font-weight:400">${r1.length}人</span></div>
-      <div class="member-chips-wrap">${r1.length?chips(r1,'r1'):'<span style="color:var(--text3);font-size:.75rem">無</span>'}</div>
+      <div class="priority-title" style="color:var(--gold)">${title1} <span style="font-size:.68rem;font-weight:400;color:var(--text3)">${desc1}</span> <span style="font-size:.68rem;font-weight:700">${r1.length}人</span></div>
+      <div class="member-chips-wrap" style="margin-bottom:8px">${r1.length?chips(r1,'r1'):'<span style="color:var(--text3);font-size:.75rem">無</span>'}</div>
+      ${r1.length?`<div class="output-box" id="${r1Id}" style="font-size:.78rem;padding:8px 10px;margin-bottom:4px">${r1Text}</div>
+      <button class="copy-btn" style="margin-bottom:0" onclick="copyEl('${r1Id}',this)">📋 複製第一輪名單</button>`:''}
     </div>
-    <div class="priority-section">
-      <div class="priority-title" style="color:var(--purple)">${title2} <span style="font-size:.68rem;font-weight:400">${r2.length}人</span></div>
-      <div class="member-chips-wrap">${r2.length?chips(r2,'r2'):'<span style="color:var(--text3);font-size:.75rem">無</span>'}</div>
+    <div class="priority-section" style="margin-top:10px">
+      <div class="priority-title" style="color:var(--purple)">${title2} <span style="font-size:.68rem;font-weight:400;color:var(--text3)">${desc2}</span> <span style="font-size:.68rem;font-weight:700">${r2.length}人</span></div>
+      <div class="member-chips-wrap" style="margin-bottom:8px">${r2.length?chips(r2,'r2'):'<span style="color:var(--text3);font-size:.75rem">無</span>'}</div>
+      ${r2.length?`<div class="output-box" id="${r2Id}" style="font-size:.78rem;padding:8px 10px;margin-bottom:4px">${r2Text}</div>
+      <button class="copy-btn" style="margin-bottom:0" onclick="copyEl('${r2Id}',this)">📋 複製第二輪名單</button>`:''}
     </div>
   </div>`;
 }
