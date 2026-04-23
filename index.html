@@ -232,10 +232,10 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
       <input type="text" class="member-search" id="memberSearch" placeholder="搜尋成員..." oninput="renderMemberGrid()">
       <div class="member-grid" id="memberGrid"></div>
     </div>
-
-    <!-- 本場結果（隨上方場次切換） -->
-    <div id="sessionResults"></div>
   </div>
+
+  <!-- 場次結果（永遠顯示，隨日期/場次切換） -->
+  <div id="sessionResults"></div>
 </div>
 
 <!-- PAGE 1: 紀錄（三場總結果） -->
@@ -613,6 +613,9 @@ function setSelectedDate(d) {
   if (dispEl) dispEl.textContent = formatDateDisplay(d);
   const modalDateEl = document.getElementById('modalDate');
   if (modalDateEl) modalDateEl.value = d;
+  syncSessionItems();
+  renderLootGrid();
+  renderMemberGrid();
   renderSessionResults();
   if (currentTab===1) renderLog();
   if (currentTab===2) renderCD();
