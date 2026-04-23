@@ -174,7 +174,7 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 </div>
 
 <div class="ses-bar">
-  <input type="date" id="sessionDate">
+  <input type="date" id="sessionDate" onchange="onDateChange()">
   <button class="ses-tag" id="btnNoon" onclick="setSession('noon')">☀️ 中午場</button>
   <button class="ses-tag" id="btnEvening" onclick="setSession('evening')">🌙 晚上場</button>
   <button class="ses-tag" id="btnKing" onclick="setSession('king')">👑 聯盟王</button>
@@ -598,6 +598,20 @@ loadLocal();
 renderAll();
 initFirebase();
 
+function getSelectedDate() {
+  return document.getElementById('sessionDate').value || new Date().toISOString().split('T')[0];
+}
+
+function onDateChange() {
+  // Update modal date to match selected date
+  document.getElementById('modalDate').value = getSelectedDate();
+  // Re-render everything with new date filter
+  renderSessionResults();
+  renderLootGrid();
+  if (currentTab===1) renderLog();
+  if (currentTab===2) renderCD();
+}
+
 // ===== SESSION =====
 function updateSessionUI(s) {
   // Pure UI update, no save
@@ -799,7 +813,7 @@ function memberClick(mid) {
     : '<span class="pill pill-blue" style="font-size:.68rem">🔵 藍色</span>';
   document.getElementById('modalInfo').innerHTML =
     `成員：<strong>${member.name}</strong>${grpInfo}<br>物品：<strong style="color:var(--gold)">${item.name}</strong> ${tierBadge}${item.hasCD?'&nbsp;<span style="color:var(--orange);font-size:.72rem">⏳ CD</span>':''}<br><span style="font-size:.72rem;color:var(--text3)">本場已標 ${tier==='purple'?'紫':'藍'}色：${tierCount}/${tierLimit}顆</span>`;
-  document.getElementById('modalDate').value = document.getElementById('sessionDate').value;
+  document.getElementById('modalDate').value = getSelectedDate();
   const ses = viewSession||S.session||'noon';
   // Set session as readonly display — cannot be changed
   document.getElementById('modalSes').value = ses;
@@ -840,16 +854,20 @@ function renderSessionResults() {
   const el = document.getElementById('sessionResults');
   if (!el) return;
   const ses = viewSession || S.session || 'noon';
-  const sesBids = S.bids.filter(b=>b.session===ses);
+  const selDate = getSelectedDate();
+  // Filter bids by session AND selected date
+  const sesBids = S.bids.filter(b => b.session===ses && b.date===selDate);
+  // For priority/CD we need all-date bids
+  const sesBidsAll = S.bids.filter(b => b.session===ses);
 
   let html = '';
 
   // --- Already bid list (only if items exist) ---
   if (S.items.length) {
-    html += `<div class="card"><div class="card-title">✅ 已競標（${ses==='noon'?'☀️ 中午場':ses==='evening'?'🌙 晚上場':'👑 聯盟王'}）</div>`;
+    html += `<div class="card"><div class="card-title">✅ 已競標（${ses==='noon'?'☀️ 中午場':ses==='evening'?'🌙 晚上場':'👑 聯盟王'}）<span style="font-size:.7rem;color:var(--text3);font-weight:400;margin-left:6px">${selDate}</span></div>`;
     const bidItems = S.items.filter(item => sesBids.some(b=>b.itemId===item.id));
     if (!bidItems.length) {
-      html += '<div class="empty">尚無競標紀錄</div>';
+      html += '<div class="empty">當天尚無競標紀錄</div>';
     } else {
       bidItems.forEach(item => {
         const ib = [...sesBids.filter(b=>b.itemId===item.id)].sort((a,b)=>a.ts-b.ts);
@@ -859,9 +877,9 @@ function renderSessionResults() {
     }
     html += '</div>';
 
-    // --- Remaining slots ---
+    // --- Remaining slots (based on ALL dates for this session) ---
     const remParts = S.items.map(item => {
-      const claimed = S.bids.filter(b=>b.itemId===item.id).length;
+      const claimed = sesBidsAll.filter(b=>b.itemId===item.id).length;
       const rem = item.qty - claimed;
       if (rem<=0) return '';
       const nums = Array.from({length:rem},(_,i)=>claimed+i+1);
@@ -874,12 +892,12 @@ function renderSessionResults() {
     </div>`;
   }
 
-  // --- Priority list (evening / king — always show if members exist) ---
+  // --- Priority list (evening / king — based on ALL dates) ---
   if ((ses==='evening'||ses==='king') && S.members.length) {
     html += renderPrioritySection(ses);
   }
 
-  // --- CD unlock (grouped by unlock date) ---
+  // --- CD unlock (all dates, show active CDs) ---
   const cdBids = S.bids.filter(b=>b.hasCD && cdDaysLeft(b)>0);
   if (cdBids.length) {
     const deduped = {};
