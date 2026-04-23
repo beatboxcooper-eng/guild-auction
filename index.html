@@ -897,9 +897,11 @@ function closeModal() { document.getElementById('bidModal').style.display='none'
 function confirmBid() {
   if (!pendingBid) return;
   const item = S.items.find(i=>i.id===pendingBid.itemId);
-  if (!item) { closeModal(); return; } // safety check
+  if (!item) { closeModal(); return; }
   S.bids.push({
     id:uid(), memberId:pendingBid.memberId, itemId:pendingBid.itemId,
+    itemName: item.name,           // store for historical display
+    itemShort: item.shortName||item.name,
     session:document.getElementById('modalSes').value,
     date:document.getElementById('modalDate').value,
     hasCD:item.hasCD||false, cdDays:item.cdDays||3, ts:Date.now()
@@ -930,16 +932,19 @@ function renderSessionResults() {
   const dateLabel = selDate.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$2/$3');
 
   // Helper: find item name from all sources
-  function findItemName(itemId) {
-    // Search current session items first
+  function findItemName(itemId, bid) {
+    // First check if bid has stored name (new bids)
+    if (bid && bid.itemShort) return bid.itemShort;
+    if (bid && bid.itemName) return bid.itemName;
+    // Search current session items
     const si = S.items.find(i=>i.id===itemId);
     if (si) return si.shortName||si.name;
-    // Search all sessionItems (new key format: date__session)
+    // Search all sessionItems keys
     for (const key of Object.keys(S.sessionItems)) {
       const fi = (S.sessionItems[key]||[]).find(i=>i.id===itemId);
       if (fi) return fi.shortName||fi.name;
     }
-    // Search itemDB by dbId match
+    // Search itemDB
     const di = S.itemDB.find(i=>i.id===itemId);
     if (di) return di.shortName||di.name;
     return '(已刪除)';
@@ -947,12 +952,11 @@ function renderSessionResults() {
 
   let html = '';
 
-  // --- Already bid list (works even without S.items) ---
+  // --- Already bid list ---
   html += `<div class="card"><div class="card-title">✅ 已競標 <span style="font-size:.75rem;color:var(--text3);font-weight:400">${sesLabel} · ${dateLabel}</span></div>`;
   if (!sesBids.length) {
     html += `<div class="empty">${dateLabel} 無競標紀錄</div>`;
   } else {
-    // Group by itemId
     const byItem = {};
     sesBids.forEach(b => {
       if (!byItem[b.itemId]) byItem[b.itemId] = [];
@@ -961,7 +965,7 @@ function renderSessionResults() {
     Object.entries(byItem).forEach(([itemId, bids]) => {
       bids.sort((a,b)=>a.ts-b.ts);
       const names = bids.map((b,i)=>{ const m=getMember(b.memberId); return (m?mName(m,'short'):'?')+(i+1); });
-      html += `<div class="bid-item"><span style="font-weight:700;flex:1">${findItemName(itemId)}(${names.join('/')})</span></div>`;
+      html += `<div class="bid-item"><span style="font-weight:700;flex:1">${findItemName(itemId, bids[0])}(${names.join('/')})</span></div>`;
     });
   }
   html += '</div>';
@@ -1154,13 +1158,17 @@ function renderLog() {
     const sesBids = S.bids.filter(b=>b.session===key);
     if (!sesBids.length) return;
 
-    // Build result text
-    const resultText = S.items.map(item => {
-      const ib = [...sesBids.filter(b=>b.itemId===item.id)].sort((a,b)=>a.ts-b.ts);
-      if (!ib.length) return '';
-      const names = ib.map((b,i)=>{ const m=getMember(b.memberId); return (m?getMLabel(m):'?')+(i+1); });
-      return `${getLabel(item)}(${names.join('/')})`;
-    }).filter(Boolean).join(' ') || '（尚無競標紀錄）';
+    // Group by itemId, use stored name from bid
+    const byItem = {};
+    sesBids.forEach(b => {
+      if (!byItem[b.itemId]) byItem[b.itemId] = {name: b.itemShort||b.itemName||'?', bids:[]};
+      byItem[b.itemId].bids.push(b);
+    });
+    const resultText = Object.values(byItem).map(({name, bids}) => {
+      bids.sort((a,b)=>a.ts-b.ts);
+      const names = bids.map((b,i)=>{ const m=getMember(b.memberId); return (m?getMLabel(m):'?')+(i+1); });
+      return `${name}(${names.join('/')})`;
+    }).join(' ') || '（尚無競標紀錄）';
 
     const boxId = `log_${key}`;
     html += `<div class="sec-label">${label}</div>
