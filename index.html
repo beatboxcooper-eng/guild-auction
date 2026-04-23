@@ -258,7 +258,11 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
   <div class="card">
     <div class="card-title">🗂 場次管理</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-red btn-sm" onclick="clearBids()">🗑 清除本場競標</button>
+      <button class="btn btn-red btn-sm" onclick="clearSessionBids('noon')">🗑 清除中午場</button>
+      <button class="btn btn-red btn-sm" onclick="clearSessionBids('evening')">🗑 清除晚上場</button>
+      <button class="btn btn-red btn-sm" onclick="clearSessionBids('king')">🗑 清除聯盟王</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
       <button class="btn btn-gray btn-sm" onclick="clearSession()">↩ 重置場次（保留設定）</button>
       <button class="btn btn-gray btn-sm" style="color:var(--red)" onclick="resetAll()">⚠️ 完全重置</button>
     </div>
@@ -323,11 +327,8 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
     <div class="modal-info" id="modalInfo"></div>
     <div class="settings-row">
       <label class="settings-label">場次</label>
-      <select id="modalSes">
-        <option value="noon">☀️ 中午場</option>
-        <option value="evening">🌙 晚上場</option>
-        <option value="king">👑 聯盟王</option>
-      </select>
+      <div id="modalSesDisplay" style="flex:1;padding:7px 10px;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;font-size:.85rem;font-weight:700;color:var(--gold)"></div>
+      <input type="hidden" id="modalSes">
     </div>
     <div class="settings-row">
       <label class="settings-label">日期</label>
@@ -429,7 +430,9 @@ const PURPLE_DEFAULTS = new Set(['黑龍','紅三']);
 // ===== STATE =====
 let S = {
   itemDB: [],
-  items: [],
+  items: [],          // current session's items (alias to sessionItems[session])
+  sessionItems: {noon:[], evening:[], king:[]},  // per-session items
+  pasteTexts: {noon:'', evening:'', king:''},    // per-session paste text
   members: [],
   bids: [],
   session: null,
@@ -527,19 +530,33 @@ function startFB() {
   });
 }
 
+function syncSessionItems() {
+  // Keep S.items in sync with current session's items
+  const ses = viewSession || S.session || 'noon';
+  S.items = S.sessionItems[ses] || [];
+}
+
 function mergeRemote(data) {
   if (data.itemDB !== undefined) S.itemDB = data.itemDB || [];
-  if (data.items !== undefined) S.items = data.items || [];
+  if (data.sessionItems !== undefined) S.sessionItems = Object.assign({noon:[],evening:[],king:[]}, data.sessionItems);
+  // legacy: if old data has items but no sessionItems, put them in current session
+  else if (data.items !== undefined) {
+    const ses = data.session || 'noon';
+    S.sessionItems[ses] = data.items || [];
+  }
+  if (data.pasteTexts !== undefined) S.pasteTexts = Object.assign({noon:'',evening:'',king:''}, data.pasteTexts);
   if (data.bids !== undefined) S.bids = data.bids || [];
   if (data.session !== undefined) S.session = data.session;
   if (data.members !== undefined) S.members = data.members || [];
   if (data.groups !== undefined) S.groups = data.groups || [];
   if (data.notes !== undefined) S.notes = data.notes || '';
+  syncSessionItems();
   renderAll();
 }
 
 let saveDebounce = null;
 function save() {
+  syncSessionItems();
   localStorage.setItem('ga', JSON.stringify(S));
   if (!fbReady) return;
   if (saveDebounce) clearTimeout(saveDebounce);
@@ -548,8 +565,8 @@ function save() {
     try {
       lastSaveTime = Date.now();
       await window._fbSave({
-        itemDB:S.itemDB, items:S.items, bids:S.bids,
-        session:S.session, members:S.members, groups:S.groups, notes:S.notes
+        itemDB:S.itemDB, sessionItems:S.sessionItems, pasteTexts:S.pasteTexts,
+        bids:S.bids, session:S.session, members:S.members, groups:S.groups, notes:S.notes
       });
       setSyncUI('on');
     } catch(e) { setSyncUI('err'); }
@@ -562,12 +579,15 @@ function loadLocal() {
     if (!raw) return;
     const d = JSON.parse(raw);
     if (d.itemDB !== undefined) S.itemDB = d.itemDB || [];
-    if (d.items !== undefined) S.items = d.items || [];
+    if (d.sessionItems !== undefined) S.sessionItems = Object.assign({noon:[],evening:[],king:[]}, d.sessionItems);
+    else if (d.items !== undefined) { const ses = d.session||'noon'; S.sessionItems[ses] = d.items||[]; }
+    if (d.pasteTexts !== undefined) S.pasteTexts = Object.assign({noon:'',evening:'',king:''}, d.pasteTexts);
     if (d.bids !== undefined) S.bids = d.bids || [];
     if (d.session) S.session = d.session;
     if (d.members !== undefined) S.members = d.members || [];
     if (d.groups !== undefined) S.groups = d.groups || [];
     if (d.notes !== undefined) S.notes = d.notes || '';
+    syncSessionItems();
   } catch(e) {}
 }
 
@@ -595,8 +615,16 @@ function setSession(s) {
   S.session = s;
   updateSessionUI(s);
   viewSession = s;
-  renderSessionResults();
+  syncSessionItems();
+  // Sync paste text for this session
+  const pasteEl = document.getElementById('pasteInput');
+  if (pasteEl) pasteEl.value = S.pasteTexts[s] || '';
+  // Show/hide loot section based on whether this session has items
+  const hasSesItems = (S.sessionItems[s]||[]).length > 0;
+  document.getElementById('lootSection').style.display = hasSesItems ? '' : 'none';
   renderLootGrid();
+  renderMemberGrid();
+  renderSessionResults();
   save();
 }
 
@@ -661,22 +689,28 @@ function parseLoot() {
         hasCD:CD_DEFAULTS.has(f.name), cdDays:3, qty:f.qty});
     }
   });
+  const ses = viewSession || S.session || 'noon';
+  // Save to current session's items
+  S.sessionItems[ses] = S.items;
+  // Save paste text for this session
+  S.pasteTexts[ses] = raw;
   save();
-  // Show loot section
   document.getElementById('lootSection').style.display = '';
-  // Ensure viewSession is set
-  if (!viewSession) viewSession = S.session || 'noon';
-  // Force UI update — don't call setSession (would re-save), just update display
+  if (!viewSession) viewSession = ses;
   renderLootGrid();
   renderMemberGrid();
   renderSessionResults();
 }
 
 function clearLoot() {
+  const ses = viewSession || S.session || 'noon';
   document.getElementById('pasteInput').value = '';
+  S.pasteTexts[ses] = '';
   document.getElementById('lootSection').style.display = 'none';
-  S.items = []; selectedItemId = null;
-  save(); renderLootGrid();
+  S.sessionItems[ses] = [];
+  S.items = [];
+  selectedItemId = null;
+  save(); renderLootGrid(); renderSessionResults();
 }
 
 // ===== LOOT GRID =====
@@ -767,7 +801,10 @@ function memberClick(mid) {
     `成員：<strong>${member.name}</strong>${grpInfo}<br>物品：<strong style="color:var(--gold)">${item.name}</strong> ${tierBadge}${item.hasCD?'&nbsp;<span style="color:var(--orange);font-size:.72rem">⏳ CD</span>':''}<br><span style="font-size:.72rem;color:var(--text3)">本場已標 ${tier==='purple'?'紫':'藍'}色：${tierCount}/${tierLimit}顆</span>`;
   document.getElementById('modalDate').value = document.getElementById('sessionDate').value;
   const ses = viewSession||S.session||'noon';
+  // Set session as readonly display — cannot be changed
   document.getElementById('modalSes').value = ses;
+  const sesLabels = {noon:'☀️ 中午場', evening:'🌙 晚上場', king:'👑 聯盟王拍賣'};
+  document.getElementById('modalSesDisplay').textContent = sesLabels[ses]||ses;
   document.getElementById('bidModal').style.display = 'flex';
 }
 
@@ -801,77 +838,70 @@ function removeBid(id) {
 // ===== SESSION RESULTS (page 0 bottom) =====
 function renderSessionResults() {
   const el = document.getElementById('sessionResults');
-  if (!el || !S.items.length) { if(el) el.innerHTML=''; return; }
-  const ses = viewSession||'noon';
+  if (!el) return;
+  const ses = viewSession || S.session || 'noon';
   const sesBids = S.bids.filter(b=>b.session===ses);
-  const useShort = true; // always short in quick view
 
   let html = '';
 
-  // --- Already bid list ---
-  html += `<div class="card"><div class="card-title">✅ 已競標（${ses==='noon'?'☀️ 中午場':ses==='evening'?'🌙 晚上場':'👑 聯盟王'}）</div>`;
-  const bidItems = S.items.filter(item => sesBids.some(b=>b.itemId===item.id));
-  if (!bidItems.length) {
-    html += '<div class="empty">尚無競標紀錄</div>';
-  } else {
-    bidItems.forEach(item => {
-      const ib = [...sesBids.filter(b=>b.itemId===item.id)].sort((a,b)=>a.ts-b.ts);
-      const names = ib.map((b,i) => { const m=getMember(b.memberId); return (m?mName(m,'short'):'?')+(i+1); });
-      html += `<div class="bid-item">
-        <span style="font-weight:700;flex:1">${iName(item,'short')}(${names.join('/')})</span>
-      </div>`;
-    });
+  // --- Already bid list (only if items exist) ---
+  if (S.items.length) {
+    html += `<div class="card"><div class="card-title">✅ 已競標（${ses==='noon'?'☀️ 中午場':ses==='evening'?'🌙 晚上場':'👑 聯盟王'}）</div>`;
+    const bidItems = S.items.filter(item => sesBids.some(b=>b.itemId===item.id));
+    if (!bidItems.length) {
+      html += '<div class="empty">尚無競標紀錄</div>';
+    } else {
+      bidItems.forEach(item => {
+        const ib = [...sesBids.filter(b=>b.itemId===item.id)].sort((a,b)=>a.ts-b.ts);
+        const names = ib.map((b,i) => { const m=getMember(b.memberId); return (m?mName(m,'short'):'?')+(i+1); });
+        html += `<div class="bid-item"><span style="font-weight:700;flex:1">${iName(item,'short')}(${names.join('/')})</span></div>`;
+      });
+    }
+    html += '</div>';
+
+    // --- Remaining slots ---
+    const remParts = S.items.map(item => {
+      const claimed = S.bids.filter(b=>b.itemId===item.id).length;
+      const rem = item.qty - claimed;
+      if (rem<=0) return '';
+      const nums = Array.from({length:rem},(_,i)=>claimed+i+1);
+      if (nums.length>4) return `${iName(item,'short')}(${nums[0]}到${nums[nums.length-1]})`;
+      return `${iName(item,'short')}(${nums.join('/')})`;
+    }).filter(Boolean);
+    html += `<div class="card"><div class="card-title">📦 剩餘名額</div>
+      <div class="output-box" id="remBox0">${remParts.length?'還剩 '+remParts.join('。'):'所有物品已競標完畢 🎉'}</div>
+      <button class="copy-btn" onclick="copyEl('remBox0',this)">📋 複製剩餘名額</button>
+    </div>`;
   }
-  html += '</div>';
 
-  // --- Remaining slots ---
-  const remParts = S.items.map(item => {
-    const claimed = S.bids.filter(b=>b.itemId===item.id).length;
-    const rem = item.qty - claimed;
-    if (rem<=0) return '';
-    const nums = Array.from({length:rem},(_,i)=>claimed+i+1);
-    if (nums.length>4) return `${iName(item,'short')}(${nums[0]}到${nums[nums.length-1]})`;
-    return `${iName(item,'short')}(${nums.join('/')})`;
-  }).filter(Boolean);
-  html += `<div class="card"><div class="card-title">📦 剩餘名額</div>
-    <div class="output-box" id="remBox0">${remParts.length?'還剩 '+remParts.join('。'):'所有物品已競標完畢 🎉'}</div>
-    <button class="copy-btn" onclick="copyEl('remBox0',this)">📋 複製剩餘名額</button>
-  </div>`;
-
-  // --- Priority list (evening / king only) ---
-  if (ses==='evening'||ses==='king') {
+  // --- Priority list (evening / king — always show if members exist) ---
+  if ((ses==='evening'||ses==='king') && S.members.length) {
     html += renderPrioritySection(ses);
   }
 
   // --- CD unlock (grouped by unlock date) ---
   const cdBids = S.bids.filter(b=>b.hasCD && cdDaysLeft(b)>0);
   if (cdBids.length) {
-    // Deduplicate per member: keep the bid with most days left
     const deduped = {};
     cdBids.forEach(bid => {
       const left = cdDaysLeft(bid);
       if (!deduped[bid.memberId] || left > deduped[bid.memberId].left)
         deduped[bid.memberId] = {bid, left};
     });
-    // Group by unlock DATE (not days left) — members with different CD lengths
-    // but same unlock date land in the same bucket; different lengths on different dates stay separate
     const groups = {};
     Object.values(deduped).forEach(({bid, left}) => {
-      const dateKey = unlockDate(bid); // e.g. "4/25"
+      const dateKey = unlockDate(bid);
       if (!groups[dateKey]) groups[dateKey] = {left, members:[]};
       const m = getMember(bid.memberId);
       groups[dateKey].members.push(m ? mName(m,'short') : '?');
     });
-    // Sort by days left ascending
     const sortedKeys = Object.keys(groups).sort((a,b) => groups[a].left - groups[b].left);
 
     let cdHtml = `<div class="card"><div class="card-title">⏳ CD解禁日期</div>
       <div style="display:grid;grid-template-columns:repeat(${Math.min(sortedKeys.length,3)},1fr);gap:8px">`;
-
     sortedKeys.forEach(dateKey => {
       const {left, members} = groups[dateKey];
-      const names = members.join(' ');
-      const copyText = `${dateKey}解禁 ${names}`;
+      const copyText = `${dateKey}解禁 ${members.join(' ')}`;
       const boxId = `cdGroup_${dateKey.replace('/','_')}`;
       cdHtml += `<div style="background:var(--bg);border:1.5px solid var(--orange-bd);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px">
         <div style="font-size:.72rem;font-weight:900;color:var(--orange);text-align:center">${left}天後 (${dateKey})</div>
@@ -879,7 +909,6 @@ function renderSessionResults() {
         <button class="copy-btn" style="font-size:.72rem;padding:6px;margin:0" onclick="copyEl('${boxId}',this)">📋 複製</button>
       </div>`;
     });
-
     cdHtml += `</div></div>`;
     html += cdHtml;
   }
@@ -1308,20 +1337,24 @@ function renderSettings() {
   renderMemberManageList();
 }
 
-function clearBids() {
-  if (!confirm('確認清除本場所有競標紀錄？')) return;
-  S.bids=[]; save(); renderAll();
+function clearSessionBids(ses) {
+  const labels = {noon:'中午場', evening:'晚上場', king:'聯盟王拍賣'};
+  if (!confirm(`確認清除${labels[ses]||ses}的所有競標紀錄？`)) return;
+  S.bids = S.bids.filter(b => b.session !== ses);
+  save(); renderAll();
 }
 function clearSession() {
   if (!confirm('確認重置場次資料？（戰利品資料庫和成員設定保留）')) return;
-  S.bids=[]; S.items=[]; S.session=null; selectedItemId=null; viewSession=null;
+  S.bids=[]; S.sessionItems={noon:[],evening:[],king:[]}; S.pasteTexts={noon:'',evening:'',king:''};
+  S.session=null; S.items=[]; selectedItemId=null; viewSession=null;
   document.getElementById('lootSection').style.display='none';
   document.getElementById('pasteInput').value='';
   save(); renderAll();
 }
 function resetAll() {
   if (!confirm('⚠️ 完全重置所有資料？')) return;
-  S={itemDB:[],items:[],members:[],bids:[],session:null,groups:[],notes:''};
+  S={itemDB:[],items:[],sessionItems:{noon:[],evening:[],king:[]},pasteTexts:{noon:'',evening:'',king:''},
+    members:[],bids:[],session:null,groups:[],notes:''};
   selectedItemId=null; viewSession=null;
   document.getElementById('lootSection').style.display='none';
   document.getElementById('pasteInput').value='';
@@ -1338,12 +1371,20 @@ function saveNotes() {
 
 // ===== RENDER ALL =====
 function renderAll() {
+  syncSessionItems();
+  const ses = viewSession || S.session || 'noon';
   if (S.items.length) document.getElementById('lootSection').style.display='';
   if (S.session) updateSessionUI(S.session);
-  if (!viewSession) viewSession=S.session||'noon';
+  if (!viewSession) viewSession = S.session || 'noon';
 
-  const notesEl=document.getElementById('notesArea');
-  if (notesEl&&document.activeElement!==notesEl) notesEl.value=S.notes||'';
+  // Sync paste text
+  const pasteEl = document.getElementById('pasteInput');
+  if (pasteEl && document.activeElement !== pasteEl) {
+    pasteEl.value = S.pasteTexts[ses] || '';
+  }
+
+  const notesEl = document.getElementById('notesArea');
+  if (notesEl && document.activeElement !== notesEl) notesEl.value = S.notes || '';
 
   renderLootGrid(); renderMemberGrid(); renderSessionResults();
   if (currentTab===1) renderLog();
