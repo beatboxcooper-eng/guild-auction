@@ -776,22 +776,26 @@ function closeModal() { document.getElementById('bidModal').style.display='none'
 function confirmBid() {
   if (!pendingBid) return;
   const item = S.items.find(i=>i.id===pendingBid.itemId);
+  if (!item) { closeModal(); return; } // safety check
   S.bids.push({
     id:uid(), memberId:pendingBid.memberId, itemId:pendingBid.itemId,
     session:document.getElementById('modalSes').value,
     date:document.getElementById('modalDate').value,
-    hasCD:item.hasCD, cdDays:item.cdDays||3, ts:Date.now()
+    hasCD:item.hasCD||false, cdDays:item.cdDays||3, ts:Date.now()
   });
   closeModal(); save();
   renderLootGrid(); renderMemberGrid(); renderSessionResults();
   if (currentTab===1) renderLog();
   if (currentTab===2) renderCD();
-  if (currentTab===3) renderSettings();
 }
 
 function removeBid(id) {
   S.bids = S.bids.filter(b=>b.id!==id);
-  save(); renderAll();
+  save();
+  renderLootGrid(); renderMemberGrid(); renderSessionResults();
+  if (currentTab===1) renderLog();
+  if (currentTab===2) renderCD();
+  if (currentTab===3) renderSettings();
 }
 
 // ===== SESSION RESULTS (page 0 bottom) =====
@@ -884,29 +888,27 @@ function renderPrioritySection(ses) {
   const noonBidderIds = new Set(S.bids.filter(b=>b.session==='noon').map(b=>b.memberId));
   const eveningBidderIds = new Set(S.bids.filter(b=>b.session==='evening').map(b=>b.memberId));
 
-  let r1=[], r2=[], title1='', title2='';
+  let r1=[], r2=[], desc1='', desc2='';
 
   if (ses==='evening') {
-    title1 = '🥇 第一輪（優先）';
-    title2 = '🥈 第二輪';
+    // R2 = anyone who bid in noon (regardless of evening status)
+    // R1 = everyone else (didn't bid in noon)
+    desc1 = '中午未競標';
+    desc2 = '中午有競標過';
     S.members.forEach(m => {
-      if (eveningBidderIds.has(m.id)) {
-        if (noonBidderIds.has(m.id)) r2.push(m);
-      } else {
-        r1.push(m);
-      }
+      if (noonBidderIds.has(m.id)) r2.push(m);
+      else r1.push(m);
     });
   } else if (ses==='king') {
-    title1 = '🥇 第一輪（優先）';
-    title2 = '🥈 第二輪';
+    // R1 = didn't bid in noon OR evening
+    // R2 = bid in noon OR evening
+    desc1 = '中午/晚上都未競標';
+    desc2 = '中午或晚上有競標過';
     S.members.forEach(m => {
-      const hasBid = noonBidderIds.has(m.id)||eveningBidderIds.has(m.id);
+      const hasBid = noonBidderIds.has(m.id) || eveningBidderIds.has(m.id);
       if (!hasBid) r1.push(m); else r2.push(m);
     });
   }
-
-  const desc1 = ses==='evening' ? '中午有打未標 ＋ 晚上未標' : '中午/晚上都沒競標到';
-  const desc2 = ses==='evening' ? '中午有打有標，晚上也有打' : '中午或晚上有競標過';
 
   const chips = (arr, cls) => arr.map(m=>`<span class="m-chip ${cls}">${mName(m,'short')}</span>`).join('');
   const r1Text = r1.map(m=>mName(m,'short')).join(' ');
@@ -917,13 +919,13 @@ function renderPrioritySection(ses) {
   return `<div class="card">
     <div class="card-title">🏆 競標優先順序</div>
     <div class="priority-section">
-      <div class="priority-title" style="color:var(--gold)">${title1} <span style="font-size:.68rem;font-weight:400;color:var(--text3)">${desc1}</span> <span style="font-size:.68rem;font-weight:700">${r1.length}人</span></div>
+      <div class="priority-title" style="color:var(--gold)">🥇 第一輪（優先） <span style="font-size:.68rem;font-weight:400;color:var(--text3)">${desc1}</span> <span style="font-size:.68rem;font-weight:700">${r1.length}人</span></div>
       <div class="member-chips-wrap" style="margin-bottom:8px">${r1.length?chips(r1,'r1'):'<span style="color:var(--text3);font-size:.75rem">無</span>'}</div>
       ${r1.length?`<div class="output-box" id="${r1Id}" style="font-size:.78rem;padding:8px 10px;margin-bottom:4px">${r1Text}</div>
       <button class="copy-btn" style="margin-bottom:0" onclick="copyEl('${r1Id}',this)">📋 複製第一輪名單</button>`:''}
     </div>
     <div class="priority-section" style="margin-top:10px">
-      <div class="priority-title" style="color:var(--purple)">${title2} <span style="font-size:.68rem;font-weight:400;color:var(--text3)">${desc2}</span> <span style="font-size:.68rem;font-weight:700">${r2.length}人</span></div>
+      <div class="priority-title" style="color:var(--purple)">🥈 第二輪 <span style="font-size:.68rem;font-weight:400;color:var(--text3)">${desc2}</span> <span style="font-size:.68rem;font-weight:700">${r2.length}人</span></div>
       <div class="member-chips-wrap" style="margin-bottom:8px">${r2.length?chips(r2,'r2'):'<span style="color:var(--text3);font-size:.75rem">無</span>'}</div>
       ${r2.length?`<div class="output-box" id="${r2Id}" style="font-size:.78rem;padding:8px 10px;margin-bottom:4px">${r2Text}</div>
       <button class="copy-btn" style="margin-bottom:0" onclick="copyEl('${r2Id}',this)">📋 複製第二輪名單</button>`:''}
@@ -1309,13 +1311,18 @@ function clearBids() {
 }
 function clearSession() {
   if (!confirm('確認重置場次資料？（戰利品資料庫和成員設定保留）')) return;
-  S.bids=[]; S.items=[]; S.session=null; selectedItemId=null;
+  S.bids=[]; S.items=[]; S.session=null; selectedItemId=null; viewSession=null;
+  document.getElementById('lootSection').style.display='none';
+  document.getElementById('pasteInput').value='';
   save(); renderAll();
 }
 function resetAll() {
   if (!confirm('⚠️ 完全重置所有資料？')) return;
   S={itemDB:[],items:[],members:[],bids:[],session:null,groups:[],notes:''};
-  selectedItemId=null; save(); renderAll();
+  selectedItemId=null; viewSession=null;
+  document.getElementById('lootSection').style.display='none';
+  document.getElementById('pasteInput').value='';
+  save(); renderAll();
 }
 
 // ===== NOTES =====
