@@ -539,7 +539,6 @@ function syncSessionItems() {
 function mergeRemote(data) {
   if (data.itemDB !== undefined) S.itemDB = data.itemDB || [];
   if (data.sessionItems !== undefined) S.sessionItems = Object.assign({noon:[],evening:[],king:[]}, data.sessionItems);
-  // legacy: if old data has items but no sessionItems, put them in current session
   else if (data.items !== undefined) {
     const ses = data.session || 'noon';
     S.sessionItems[ses] = data.items || [];
@@ -551,6 +550,7 @@ function mergeRemote(data) {
   if (data.groups !== undefined) S.groups = data.groups || [];
   if (data.notes !== undefined) S.notes = data.notes || '';
   syncSessionItems();
+  // Do NOT reset sessionDate when merging remote — user may be viewing a different date
   renderAll();
 }
 
@@ -602,17 +602,21 @@ renderAll();
 initFirebase();
 
 function getSelectedDate() {
-  return document.getElementById('sessionDate').value || new Date().toISOString().split('T')[0];
+  const el = document.getElementById('sessionDate');
+  return el ? el.value || new Date().toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
 }
 
 function onDateChange(val) {
-  // Ensure the input value is set (iOS fix)
-  if (val) document.getElementById('sessionDate').value = val;
-  document.getElementById('modalDate').value = getSelectedDate();
-  renderSessionResults();
-  renderLootGrid();
-  if (currentTab===1) renderLog();
-  if (currentTab===2) renderCD();
+  const el = document.getElementById('sessionDate');
+  if (val && el) el.value = val;
+  // Use setTimeout to ensure iOS Safari has finished updating .value
+  setTimeout(() => {
+    const date = getSelectedDate();
+    document.getElementById('modalDate').value = date;
+    renderSessionResults();
+    if (currentTab===1) renderLog();
+    if (currentTab===2) renderCD();
+  }, 100);
 }
 
 // ===== SESSION =====
