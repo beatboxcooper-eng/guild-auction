@@ -435,9 +435,9 @@ const PURPLE_DEFAULTS = new Set(['黑龍','紅三']);
 // ===== STATE =====
 let S = {
   itemDB: [],
-  items: [],          // current session's items (alias to sessionItems[session])
-  sessionItems: {noon:[], evening:[], king:[]},  // per-session items
-  pasteTexts: {noon:'', evening:'', king:''},    // per-session paste text
+  items: [],          // current session+date items (synced by syncSessionItems)
+  sessionItems: {},   // {date: {noon:[], evening:[], king:[]}}
+  pasteTexts: {},     // {date: {noon:'', evening:'', king:''}}
   members: [],
   bids: [],
   session: null,
@@ -535,27 +535,31 @@ function startFB() {
   });
 }
 
+function getDateSesKey(date, ses) { return `${date}__${ses}`; }
+
 function syncSessionItems() {
-  // Keep S.items in sync with current session's items
   const ses = viewSession || S.session || 'noon';
-  S.items = S.sessionItems[ses] || [];
+  const date = selectedDate;
+  const key = getDateSesKey(date, ses);
+  S.items = S.sessionItems[key] || [];
 }
 
 function mergeRemote(data) {
   if (data.itemDB !== undefined) S.itemDB = data.itemDB || [];
-  if (data.sessionItems !== undefined) S.sessionItems = Object.assign({noon:[],evening:[],king:[]}, data.sessionItems);
+  if (data.sessionItems !== undefined) S.sessionItems = data.sessionItems || {};
+  // legacy migration: old flat {noon:[],evening:[],king:[]} structure
   else if (data.items !== undefined) {
     const ses = data.session || 'noon';
-    S.sessionItems[ses] = data.items || [];
+    const date = new Date().toISOString().split('T')[0];
+    S.sessionItems[getDateSesKey(date, ses)] = data.items || [];
   }
-  if (data.pasteTexts !== undefined) S.pasteTexts = Object.assign({noon:'',evening:'',king:''}, data.pasteTexts);
+  if (data.pasteTexts !== undefined) S.pasteTexts = data.pasteTexts || {};
   if (data.bids !== undefined) S.bids = data.bids || [];
   if (data.session !== undefined) S.session = data.session;
   if (data.members !== undefined) S.members = data.members || [];
   if (data.groups !== undefined) S.groups = data.groups || [];
   if (data.notes !== undefined) S.notes = data.notes || '';
   syncSessionItems();
-  // Do NOT reset sessionDate when merging remote — user may be viewing a different date
   renderAll();
 }
 
@@ -584,9 +588,31 @@ function loadLocal() {
     if (!raw) return;
     const d = JSON.parse(raw);
     if (d.itemDB !== undefined) S.itemDB = d.itemDB || [];
-    if (d.sessionItems !== undefined) S.sessionItems = Object.assign({noon:[],evening:[],king:[]}, d.sessionItems);
-    else if (d.items !== undefined) { const ses = d.session||'noon'; S.sessionItems[ses] = d.items||[]; }
-    if (d.pasteTexts !== undefined) S.pasteTexts = Object.assign({noon:'',evening:'',king:''}, d.pasteTexts);
+    if (d.sessionItems !== undefined) {
+      // detect legacy flat structure {noon:[],evening:[],king:[]}
+      if (Array.isArray(d.sessionItems.noon) || Array.isArray(d.sessionItems.evening)) {
+        // migrate: put old items under today's date
+        const today = new Date().toISOString().split('T')[0];
+        S.sessionItems = {};
+        ['noon','evening','king'].forEach(ses => {
+          if (d.sessionItems[ses]?.length) S.sessionItems[getDateSesKey(today,ses)] = d.sessionItems[ses];
+        });
+      } else {
+        S.sessionItems = d.sessionItems || {};
+      }
+    }
+    if (d.pasteTexts !== undefined) {
+      // detect legacy flat structure
+      if (typeof d.pasteTexts.noon === 'string') {
+        const today = new Date().toISOString().split('T')[0];
+        S.pasteTexts = {};
+        ['noon','evening','king'].forEach(ses => {
+          if (d.pasteTexts[ses]) S.pasteTexts[getDateSesKey(today,ses)] = d.pasteTexts[ses];
+        });
+      } else {
+        S.pasteTexts = d.pasteTexts || {};
+      }
+    }
     if (d.bids !== undefined) S.bids = d.bids || [];
     if (d.session) S.session = d.session;
     if (d.members !== undefined) S.members = d.members || [];
@@ -613,7 +639,14 @@ function setSelectedDate(d) {
   if (dispEl) dispEl.textContent = formatDateDisplay(d);
   const modalDateEl = document.getElementById('modalDate');
   if (modalDateEl) modalDateEl.value = d;
+  // Sync items and paste text for new date
   syncSessionItems();
+  const ses = viewSession || S.session || 'noon';
+  const key = getDateSesKey(d, ses);
+  const pasteEl = document.getElementById('pasteInput');
+  if (pasteEl) pasteEl.value = S.pasteTexts[key] || '';
+  const hasSesItems = (S.sessionItems[key]||[]).length > 0;
+  document.getElementById('lootSection').style.display = hasSesItems ? '' : 'none';
   renderLootGrid();
   renderMemberGrid();
   renderSessionResults();
@@ -664,11 +697,10 @@ function setSession(s) {
   updateSessionUI(s);
   viewSession = s;
   syncSessionItems();
-  // Sync paste text for this session
+  const key = getDateSesKey(selectedDate, s);
   const pasteEl = document.getElementById('pasteInput');
-  if (pasteEl) pasteEl.value = S.pasteTexts[s] || '';
-  // Show/hide loot section based on whether this session has items
-  const hasSesItems = (S.sessionItems[s]||[]).length > 0;
+  if (pasteEl) pasteEl.value = S.pasteTexts[key] || '';
+  const hasSesItems = (S.sessionItems[key]||[]).length > 0;
   document.getElementById('lootSection').style.display = hasSesItems ? '' : 'none';
   renderLootGrid();
   renderMemberGrid();
@@ -738,10 +770,10 @@ function parseLoot() {
     }
   });
   const ses = viewSession || S.session || 'noon';
-  // Save to current session's items
-  S.sessionItems[ses] = S.items;
-  // Save paste text for this session
-  S.pasteTexts[ses] = raw;
+  const date = selectedDate;
+  const key = getDateSesKey(date, ses);
+  S.sessionItems[key] = S.items;
+  S.pasteTexts[key] = raw;
   save();
   document.getElementById('lootSection').style.display = '';
   if (!viewSession) viewSession = ses;
@@ -752,10 +784,11 @@ function parseLoot() {
 
 function clearLoot() {
   const ses = viewSession || S.session || 'noon';
+  const key = getDateSesKey(selectedDate, ses);
   document.getElementById('pasteInput').value = '';
-  S.pasteTexts[ses] = '';
+  S.pasteTexts[key] = '';
   document.getElementById('lootSection').style.display = 'none';
-  S.sessionItems[ses] = [];
+  S.sessionItems[key] = [];
   S.items = [];
   selectedItemId = null;
   save(); renderLootGrid(); renderSessionResults();
@@ -889,29 +922,48 @@ function renderSessionResults() {
   if (!el) return;
   const ses = viewSession || S.session || 'noon';
   const selDate = getSelectedDate();
-  // All bids for this session on selected date only
   const sesBids = S.bids.filter(b => b.session===ses && b.date===selDate);
   const sesLabel = ses==='noon'?'☀️ 中午場':ses==='evening'?'🌙 晚上場':'👑 聯盟王';
   const dateLabel = selDate.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$2/$3');
 
+  // Helper: find item name from all sources
+  function findItemName(itemId) {
+    const si = S.items.find(i=>i.id===itemId);
+    if (si) return si.shortName||si.name;
+    // check all sessionItems
+    for (const k of ['noon','evening','king']) {
+      const fi = (S.sessionItems[k]||[]).find(i=>i.id===itemId);
+      if (fi) return fi.shortName||fi.name;
+    }
+    // check itemDB
+    const di = S.itemDB.find(i=>i.id===itemId||i.id===itemId);
+    if (di) return di.shortName||di.name;
+    return '(已刪除)';
+  }
+
   let html = '';
 
-  // --- Already bid list ---
-  if (S.items.length) {
-    html += `<div class="card"><div class="card-title">✅ 已競標 <span style="font-size:.75rem;color:var(--text3);font-weight:400">${sesLabel} · ${dateLabel}</span></div>`;
-    const bidItems = S.items.filter(item => sesBids.some(b=>b.itemId===item.id));
-    if (!bidItems.length) {
-      html += `<div class="empty">${dateLabel} 無競標紀錄</div>`;
-    } else {
-      bidItems.forEach(item => {
-        const ib = [...sesBids.filter(b=>b.itemId===item.id)].sort((a,b)=>a.ts-b.ts);
-        const names = ib.map((b,i) => { const m=getMember(b.memberId); return (m?mName(m,'short'):'?')+(i+1); });
-        html += `<div class="bid-item"><span style="font-weight:700;flex:1">${iName(item,'short')}(${names.join('/')})</span></div>`;
-      });
-    }
-    html += '</div>';
+  // --- Already bid list (works even without S.items) ---
+  html += `<div class="card"><div class="card-title">✅ 已競標 <span style="font-size:.75rem;color:var(--text3);font-weight:400">${sesLabel} · ${dateLabel}</span></div>`;
+  if (!sesBids.length) {
+    html += `<div class="empty">${dateLabel} 無競標紀錄</div>`;
+  } else {
+    // Group by itemId
+    const byItem = {};
+    sesBids.forEach(b => {
+      if (!byItem[b.itemId]) byItem[b.itemId] = [];
+      byItem[b.itemId].push(b);
+    });
+    Object.entries(byItem).forEach(([itemId, bids]) => {
+      bids.sort((a,b)=>a.ts-b.ts);
+      const names = bids.map((b,i)=>{ const m=getMember(b.memberId); return (m?mName(m,'short'):'?')+(i+1); });
+      html += `<div class="bid-item"><span style="font-weight:700;flex:1">${findItemName(itemId)}(${names.join('/')})</span></div>`;
+    });
+  }
+  html += '</div>';
 
-    // --- Remaining (based on selected date's bids only) ---
+  // --- Remaining (only if current session has items loaded) ---
+  if (S.items.length) {
     const remParts = S.items.map(item => {
       const claimed = sesBids.filter(b=>b.itemId===item.id).length;
       const rem = item.qty - claimed;
@@ -1399,7 +1451,7 @@ function clearSessionBids(ses) {
 }
 function clearSession() {
   if (!confirm('確認重置場次資料？（戰利品資料庫和成員設定保留）')) return;
-  S.bids=[]; S.sessionItems={noon:[],evening:[],king:[]}; S.pasteTexts={noon:'',evening:'',king:''};
+  S.bids=[]; S.sessionItems={}; S.pasteTexts={};
   S.session=null; S.items=[]; selectedItemId=null; viewSession=null;
   document.getElementById('lootSection').style.display='none';
   document.getElementById('pasteInput').value='';
@@ -1407,7 +1459,7 @@ function clearSession() {
 }
 function resetAll() {
   if (!confirm('⚠️ 完全重置所有資料？')) return;
-  S={itemDB:[],items:[],sessionItems:{noon:[],evening:[],king:[]},pasteTexts:{noon:'',evening:'',king:''},
+  S={itemDB:[],items:[],sessionItems:{},pasteTexts:{},
     members:[],bids:[],session:null,groups:[],notes:''};
   selectedItemId=null; viewSession=null;
   document.getElementById('lootSection').style.display='none';
@@ -1427,7 +1479,9 @@ function saveNotes() {
 function renderAll() {
   syncSessionItems();
   const ses = viewSession || S.session || 'noon';
-  if (S.items.length) document.getElementById('lootSection').style.display='';
+  const key = getDateSesKey(selectedDate, ses);
+  const hasItems = (S.sessionItems[key]||[]).length > 0;
+  if (hasItems) document.getElementById('lootSection').style.display='';
   if (S.session) updateSessionUI(S.session);
   if (!viewSession) viewSession = S.session || 'noon';
 
@@ -1435,10 +1489,10 @@ function renderAll() {
   const dispEl = document.getElementById('sessionDateDisplay');
   if (dispEl) dispEl.textContent = formatDateDisplay(selectedDate);
 
-  // Sync paste text
+  // Sync paste text for current date+session
   const pasteEl = document.getElementById('pasteInput');
   if (pasteEl && document.activeElement !== pasteEl) {
-    pasteEl.value = S.pasteTexts[ses] || '';
+    pasteEl.value = S.pasteTexts[key] || '';
   }
 
   const notesEl = document.getElementById('notesArea');
