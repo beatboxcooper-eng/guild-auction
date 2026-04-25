@@ -328,6 +328,27 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
   </div>
 </div>
 
+<!-- MODAL: edit bid -->
+<div class="modal-bg" id="editBidModal" style="display:none" onclick="if(event.target===this)closeEditBidModal()">
+  <div class="modal">
+    <h3>✏️ 修改競標</h3>
+    <div class="modal-info" id="editBidInfo"></div>
+    <div class="settings-row">
+      <label class="settings-label">成員</label>
+      <select id="editBidMember" style="flex:1"></select>
+    </div>
+    <div class="settings-row">
+      <label class="settings-label">日期</label>
+      <input type="date" id="editBidDate">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-red" style="flex:1" onclick="deleteBidFromModal()">🗑 刪除</button>
+      <button class="btn btn-gray" style="flex:1" onclick="closeEditBidModal()">取消</button>
+      <button class="btn btn-gold" style="flex:1" onclick="confirmEditBid()">✓ 確認</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALS -->
 <div class="modal-bg" id="bidModal" style="display:none" onclick="if(event.target===this)closeModal()">
   <div class="modal">
@@ -653,6 +674,7 @@ function setSelectedDate(d) {
   renderLootGrid();
   renderMemberGrid();
   renderSessionResults();
+  renderCDSection();
   if (currentTab===1) renderLog();
   if (currentTab===2) renderCD();
 }
@@ -933,9 +955,8 @@ function renderSessionResults() {
 
   // Helper: find item name from all sources
   function findItemName(itemId, bid) {
-    // First check if bid has stored name (new bids)
-    if (bid && bid.itemShort) return bid.itemShort;
-    if (bid && bid.itemName) return bid.itemName;
+    if (bid && bid.itemShort && bid.itemShort !== '?') return bid.itemShort;
+    if (bid && bid.itemName && bid.itemName !== '?') return bid.itemName;
     // Search current session items
     const si = S.items.find(i=>i.id===itemId);
     if (si) return si.shortName||si.name;
@@ -944,10 +965,18 @@ function renderSessionResults() {
       const fi = (S.sessionItems[key]||[]).find(i=>i.id===itemId);
       if (fi) return fi.shortName||fi.name;
     }
-    // Search itemDB
+    // Search itemDB directly (item might reference dbId)
     const di = S.itemDB.find(i=>i.id===itemId);
     if (di) return di.shortName||di.name;
-    return '(已刪除)';
+    // Search itemDB by dbId cross-reference through sessionItems
+    for (const key of Object.keys(S.sessionItems)) {
+      const si2 = (S.sessionItems[key]||[]).find(i=>i.id===itemId);
+      if (si2 && si2.dbId) {
+        const db = S.itemDB.find(d=>d.id===si2.dbId);
+        if (db) return db.shortName||db.name;
+      }
+    }
+    return '?';
   }
 
   let html = '';
@@ -964,8 +993,18 @@ function renderSessionResults() {
     });
     Object.entries(byItem).forEach(([itemId, bids]) => {
       bids.sort((a,b)=>a.ts-b.ts);
-      const names = bids.map((b,i)=>{ const m=getMember(b.memberId); return (m?mName(m,'short'):'?')+(i+1); });
-      html += `<div class="bid-item"><span style="font-weight:700;flex:1">${findItemName(itemId, bids[0])}(${names.join('/')})</span></div>`;
+      const itemLabel = findItemName(itemId, bids[0]);
+      html += `<div class="bid-item" style="flex-wrap:wrap;gap:4px">
+        <span style="font-weight:700;flex:1">${itemLabel}(${
+          bids.map((b,i)=>{ const m=getMember(b.memberId); return (m?mName(m,'short'):'?')+(i+1); }).join('/')
+        })</span>
+        <div style="display:flex;gap:4px">
+          ${bids.map(b=>{
+            const m=getMember(b.memberId);
+            return `<button class="btn btn-gray btn-sm" style="font-size:.65rem;padding:3px 7px" onclick="editBidModal('${b.id}')">✏️${m?mName(m,'short'):'?'}</button>`;
+          }).join('')}
+        </div>
+      </div>`;
     });
   }
   html += '</div>';
@@ -1487,6 +1526,59 @@ function saveNotes() {
   S.notes=document.getElementById('notesArea')?.value||'';
   if (notesTimer) clearTimeout(notesTimer);
   notesTimer=setTimeout(()=>save(), 1000);
+}
+
+// ===== EDIT BID =====
+function editBidModal(bidId) {
+  const bid = S.bids.find(b=>b.id===bidId);
+  if (!bid) return;
+  const item = (() => {
+    const si = S.items.find(i=>i.id===bid.itemId);
+    if (si) return si;
+    for (const key of Object.keys(S.sessionItems)) {
+      const fi = (S.sessionItems[key]||[]).find(i=>i.id===bid.itemId);
+      if (fi) return fi;
+    }
+    return null;
+  })();
+  const itemName = bid.itemShort || bid.itemName || item?.shortName || item?.name || '?';
+  const m = getMember(bid.memberId);
+  document.getElementById('editBidInfo').innerHTML =
+    `物品：<strong>${itemName}</strong><br>目前成員：<strong>${m?.name||'?'}</strong>`;
+  // Populate member select
+  const sel = document.getElementById('editBidMember');
+  sel.innerHTML = S.members.map(mem=>
+    `<option value="${mem.id}" ${mem.id===bid.memberId?'selected':''}>${mem.name}${mem.shortName&&mem.shortName!==mem.name?' ('+mem.shortName+')':''}</option>`
+  ).join('');
+  document.getElementById('editBidDate').value = bid.date;
+  document.getElementById('editBidModal')._bidId = bidId;
+  document.getElementById('editBidModal').style.display = 'flex';
+}
+
+function closeEditBidModal() {
+  document.getElementById('editBidModal').style.display = 'none';
+}
+
+function confirmEditBid() {
+  const bidId = document.getElementById('editBidModal')._bidId;
+  const bid = S.bids.find(b=>b.id===bidId);
+  if (!bid) return;
+  bid.memberId = document.getElementById('editBidMember').value;
+  bid.date = document.getElementById('editBidDate').value;
+  closeEditBidModal();
+  save(); renderLootGrid(); renderMemberGrid(); renderSessionResults(); renderCDSection();
+  if (currentTab===1) renderLog();
+  if (currentTab===2) renderCD();
+}
+
+function deleteBidFromModal() {
+  const bidId = document.getElementById('editBidModal')._bidId;
+  if (!confirm('確認刪除這筆競標紀錄？')) return;
+  S.bids = S.bids.filter(b=>b.id!==bidId);
+  closeEditBidModal();
+  save(); renderLootGrid(); renderMemberGrid(); renderSessionResults(); renderCDSection();
+  if (currentTab===1) renderLog();
+  if (currentTab===2) renderCD();
 }
 
 // ===== RENDER ALL =====
