@@ -824,10 +824,12 @@ function renderLootGrid() {
   const el = document.getElementById('lootGrid');
   if (!S.items.length) { el.innerHTML=''; return; }
   const ses = viewSession || S.session || 'noon';
+  const date = selectedDate;
   el.innerHTML = S.items.map(item => {
-    const claimed = S.bids.filter(b => b.itemId===item.id && b.session===ses).length;
-    const totalClaimed = S.bids.filter(b => b.itemId===item.id).length;
-    const rem = item.qty - totalClaimed;
+    // Only count bids for THIS session and THIS date
+    const sesBids = S.bids.filter(b => b.itemId===item.id && b.session===ses && b.date===date);
+    const claimed = sesBids.length;
+    const rem = item.qty - claimed;
     const full = rem <= 0;
     const sel = selectedItemId === item.id;
     const tier = item.tier||'blue';
@@ -857,7 +859,8 @@ function updateSelHint() {
   if (!selectedItemId) { hint.innerHTML='← 點選上方戰利品，再選成員登記競標'; return; }
   const item = S.items.find(i=>i.id===selectedItemId);
   if (!item) return;
-  const claimed = S.bids.filter(b=>b.itemId===selectedItemId).length;
+  const ses = viewSession || S.session || 'noon';
+  const claimed = S.bids.filter(b=>b.itemId===selectedItemId && b.session===ses && b.date===selectedDate).length;
   const rem = item.qty - claimed;
   hint.innerHTML = `已選：<strong>${item.name}</strong>　剩：<strong style="color:${rem>0?'var(--green)':'var(--red)'}">${rem}/${item.qty}</strong>　⬇️ 點成員`;
 }
@@ -867,12 +870,14 @@ function renderMemberGrid() {
   const search = (document.getElementById('memberSearch')?.value||'').toLowerCase();
   const grid = document.getElementById('memberGrid');
   if (!grid) return;
+  const ses = viewSession || S.session || 'noon';
+  const date = selectedDate;
   const filtered = S.members.filter(m =>
     m.name.toLowerCase().includes(search) ||
     (m.shortName && m.shortName.toLowerCase().includes(search))
   );
   grid.innerHTML = filtered.map(m => {
-    const bc = S.bids.filter(b=>b.memberId===m.id).length;
+    const bc = S.bids.filter(b=>b.memberId===m.id && b.session===ses && b.date===date).length;
     const hc = S.bids.some(b=>b.memberId===m.id && b.hasCD);
     return `<div class="member-chip ${bc>0?'has-bid':''} ${hc?'has-cd':''}" onclick="memberClick('${m.id}')">
       ${bc>0?`<span class="bid-count">${bc}</span>`:''}${mName(m,'display')}
@@ -885,15 +890,18 @@ function memberClick(mid) {
   const item = S.items.find(i=>i.id===selectedItemId);
   const member = getMember(mid);
   if (!item||!member) return;
-  const totalClaimed = S.bids.filter(b=>b.itemId===item.id).length;
+  const ses = viewSession || S.session || 'noon';
+  const date = selectedDate;
+  // Only count bids for current session+date
+  const totalClaimed = S.bids.filter(b=>b.itemId===item.id && b.session===ses && b.date===date).length;
   if (totalClaimed>=item.qty) { alert(`「${item.name}」已全部競標完畢！`); return; }
   const limit = item.perMemberLimit||(item.tier==='purple'?1:2);
-  const memberItemBids = S.bids.filter(b=>b.memberId===mid&&b.itemId===item.id).length;
+  const memberItemBids = S.bids.filter(b=>b.memberId===mid&&b.itemId===item.id&&b.session===ses&&b.date===date).length;
   if (memberItemBids>=limit) { alert(`${member.name} 對「${item.name}」已達上限（${limit}顆）`); return; }
   const tier = item.tier||'blue';
   const tierLimit = tier==='purple'?1:2;
   const tierIds = S.items.filter(i=>(i.tier||'blue')===tier).map(i=>i.id);
-  const tierCount = S.bids.filter(b=>b.memberId===mid&&tierIds.includes(b.itemId)).length;
+  const tierCount = S.bids.filter(b=>b.memberId===mid&&tierIds.includes(b.itemId)&&b.session===ses&&b.date===date).length;
   if (tierCount>=tierLimit) {
     alert(`${member.name} 的${tier==='purple'?'紫色':'藍色'}競標已達上限（${tierLimit}顆）`); return;
   }
