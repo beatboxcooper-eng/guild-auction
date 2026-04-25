@@ -276,16 +276,9 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 
 <div class="page" id="p3">
   <div class="card">
-    <div class="card-title">🗂 場次管理</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-red btn-sm" onclick="clearSessionBids('noon')">🗑 清除中午場</button>
-      <button class="btn btn-red btn-sm" onclick="clearSessionBids('evening')">🗑 清除晚上場</button>
-      <button class="btn btn-red btn-sm" onclick="clearSessionBids('king')">🗑 清除聯盟王</button>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-      <button class="btn btn-gray btn-sm" onclick="clearSession()">↩ 重置場次（保留設定）</button>
-      <button class="btn btn-gray btn-sm" style="color:var(--red)" onclick="resetAll()">⚠️ 完全重置</button>
-    </div>
+    <div class="card-title">🗂 資料管理</div>
+    <div class="notice" style="font-size:.75rem;background:var(--red-bg);border-color:var(--red-bd);color:var(--red)">⚠️ 完全重置會清除所有競標紀錄、戰利品、CD追蹤（成員和群組設定保留）</div>
+    <button class="btn btn-gray btn-sm btn-full" style="color:var(--red);margin-top:4px" onclick="resetAll()">⚠️ 完全重置所有資料</button>
   </div>
 
   <div class="card">
@@ -754,7 +747,11 @@ function gotoTab(n) {
   currentTab = n;
   document.querySelectorAll('.page').forEach((p,i) => p.classList.toggle('active', i===n));
   document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===n));
-  if (n===1) renderLog();
+  if (n===1) {
+    // Auto-return to today when viewing log
+    resetToToday();
+    renderLog();
+  }
   if (n===2) renderCD();
   if (n===3) renderSettings();
 }
@@ -835,9 +832,10 @@ function renderLootGrid() {
   if (!S.items.length) { el.innerHTML=''; return; }
   const ses = viewSession || S.session || 'noon';
   const date = selectedDate;
+  // Only count active bids (not cdOnly) for current session and date
+  const activeBids = (bids) => bids.filter(b => !b.cdOnly);
   el.innerHTML = S.items.map(item => {
-    // Only count bids for THIS session and THIS date
-    const sesBids = S.bids.filter(b => b.itemId===item.id && b.session===ses && b.date===date);
+    const sesBids = activeBids(S.bids.filter(b => b.itemId===item.id && b.session===ses && b.date===date));
     const claimed = sesBids.length;
     const rem = item.qty - claimed;
     const full = rem <= 0;
@@ -887,8 +885,8 @@ function renderMemberGrid() {
     (m.shortName && m.shortName.toLowerCase().includes(search))
   );
   grid.innerHTML = filtered.map(m => {
-    const bc = S.bids.filter(b=>b.memberId===m.id && b.session===ses && b.date===date).length;
-    const hc = S.bids.some(b=>b.memberId===m.id && b.hasCD);
+    const bc = S.bids.filter(b=>b.memberId===m.id && b.session===ses && b.date===date && !b.cdOnly).length;
+    const hc = S.bids.some(b=>b.memberId===m.id && b.hasCD && cdDaysLeft(b)>0);
     return `<div class="member-chip ${bc>0?'has-bid':''} ${hc?'has-cd':''}" onclick="memberClick('${m.id}')">
       ${bc>0?`<span class="bid-count">${bc}</span>`:''}${mName(m,'display')}
     </div>`;
@@ -902,16 +900,17 @@ function memberClick(mid) {
   if (!item||!member) return;
   const ses = viewSession || S.session || 'noon';
   const date = selectedDate;
-  // Only count bids for current session+date
-  const totalClaimed = S.bids.filter(b=>b.itemId===item.id && b.session===ses && b.date===date).length;
+  // Only count non-cdOnly bids for limits
+  const activeBids = S.bids.filter(b => !b.cdOnly);
+  const totalClaimed = activeBids.filter(b=>b.itemId===item.id && b.session===ses && b.date===date).length;
   if (totalClaimed>=item.qty) { alert(`「${item.name}」已全部競標完畢！`); return; }
   const limit = item.perMemberLimit||(item.tier==='purple'?1:2);
-  const memberItemBids = S.bids.filter(b=>b.memberId===mid&&b.itemId===item.id&&b.session===ses&&b.date===date).length;
+  const memberItemBids = activeBids.filter(b=>b.memberId===mid&&b.itemId===item.id&&b.session===ses&&b.date===date).length;
   if (memberItemBids>=limit) { alert(`${member.name} 對「${item.name}」已達上限（${limit}顆）`); return; }
   const tier = item.tier||'blue';
   const tierLimit = tier==='purple'?1:2;
   const tierIds = S.items.filter(i=>(i.tier||'blue')===tier).map(i=>i.id);
-  const tierCount = S.bids.filter(b=>b.memberId===mid&&tierIds.includes(b.itemId)&&b.session===ses&&b.date===date).length;
+  const tierCount = activeBids.filter(b=>b.memberId===mid&&tierIds.includes(b.itemId)&&b.session===ses&&b.date===date).length;
   if (tierCount>=tierLimit) {
     alert(`${member.name} 的${tier==='purple'?'紫色':'藍色'}競標已達上限（${tierLimit}顆）`); return;
   }
@@ -966,7 +965,7 @@ function renderSessionResults() {
   if (!el) return;
   const ses = viewSession || S.session || 'noon';
   const selDate = getSelectedDate();
-  const sesBids = S.bids.filter(b => b.session===ses && b.date===selDate);
+  const sesBids = S.bids.filter(b => b.session===ses && b.date===selDate && !b.cdOnly);
   const sesLabel = ses==='noon'?'☀️ 中午場':ses==='evening'?'🌙 晚上場':'👑 聯盟王';
   const dateLabel = selDate.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$2/$3');
 
@@ -1244,7 +1243,10 @@ function renderLog() {
     }).join(' ') || '（尚無競標紀錄）';
 
     const boxId = `log_${key}`;
-    html += `<div class="sec-label">${label}</div>
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div class="sec-label" style="margin:0">${label}</div>
+      <button class="btn btn-red btn-sm" style="font-size:.68rem" onclick="clearOneSesLog('${key}','${label}')">🗑 清除本場</button>
+    </div>
       <div class="output-box" id="${boxId}">${resultText}</div>
       <button class="copy-btn" onclick="copyEl('${boxId}',this)">📋 複製${label}結果</button>`;
 
@@ -1288,6 +1290,18 @@ function renderLog() {
     <button class="copy-btn" onclick="copyEl('log_cd',this)">📋 複製CD名單</button>`;
 
   el.innerHTML = html || '<div class="empty">尚無競標紀錄</div>';
+}
+
+function clearOneSesLog(ses, label) {
+  const count = S.bids.filter(b=>b.session===ses && !b.cdOnly).length;
+  if (!count) { alert('此場次沒有競標紀錄'); return; }
+  if (!confirm(`確認清除${label}的所有競標紀錄？（共${count}筆）\nCD紀錄會保留。`)) return;
+  S.bids = S.bids.map(b => {
+    if (b.session===ses && b.hasCD) return {...b, cdOnly: true};
+    return b;
+  }).filter(b => b.session!==ses || b.hasCD);
+  save(); renderLootGrid(); renderMemberGrid(); renderSessionResults(); renderCDSection();
+  renderLog();
 }
 
 function deleteBidConfirm(id) {
@@ -1569,13 +1583,21 @@ function renderSettings() {
 
 function clearSessionBids(ses) {
   const labels = {noon:'中午場', evening:'晚上場', king:'聯盟王拍賣'};
-  if (!confirm(`確認清除${labels[ses]||ses}的所有競標紀錄？`)) return;
-  S.bids = S.bids.filter(b => b.session !== ses);
+  if (!confirm(`確認清除${labels[ses]||ses}的競標紀錄？\n（有CD的紀錄會保留在CD追蹤中）`)) return;
+  // Keep bids that have CD (for CD tracking), remove non-CD bids of this session
+  // For CD bids of this session: keep them but mark as cdOnly so they don't count toward bid limits
+  S.bids = S.bids.map(b => {
+    if (b.session === ses && b.hasCD) return {...b, cdOnly: true}; // keep for CD tracking
+    return b;
+  }).filter(b => b.session !== ses || b.hasCD); // remove non-CD bids of this session
   save(); renderAll();
 }
+
 function clearSession() {
-  if (!confirm('確認重置場次資料？（戰利品資料庫和成員設定保留）')) return;
-  S.bids=[]; S.sessionItems={}; S.pasteTexts={};
+  if (!confirm('確認重置場次資料？（戰利品資料庫和成員設定保留，CD紀錄保留）')) return;
+  // Keep CD bids for tracking
+  S.bids = S.bids.filter(b => b.hasCD).map(b => ({...b, cdOnly: true}));
+  S.sessionItems={}; S.pasteTexts={};
   S.session=null; S.items=[]; selectedItemId=null; viewSession=null;
   document.getElementById('lootSection').style.display='none';
   document.getElementById('pasteInput').value='';
