@@ -611,12 +611,10 @@ function loadLocal() {
     const raw = localStorage.getItem('ga');
     if (!raw) return;
     const d = JSON.parse(raw);
+    const today = new Date().toISOString().split('T')[0];
     if (d.itemDB !== undefined) S.itemDB = d.itemDB || [];
     if (d.sessionItems !== undefined) {
-      // detect legacy flat structure {noon:[],evening:[],king:[]}
       if (Array.isArray(d.sessionItems.noon) || Array.isArray(d.sessionItems.evening)) {
-        // migrate: put old items under today's date
-        const today = new Date().toISOString().split('T')[0];
         S.sessionItems = {};
         ['noon','evening','king'].forEach(ses => {
           if (d.sessionItems[ses]?.length) S.sessionItems[getDateSesKey(today,ses)] = d.sessionItems[ses];
@@ -626,9 +624,7 @@ function loadLocal() {
       }
     }
     if (d.pasteTexts !== undefined) {
-      // detect legacy flat structure
       if (typeof d.pasteTexts.noon === 'string') {
-        const today = new Date().toISOString().split('T')[0];
         S.pasteTexts = {};
         ['noon','evening','king'].forEach(ses => {
           if (d.pasteTexts[ses]) S.pasteTexts[getDateSesKey(today,ses)] = d.pasteTexts[ses];
@@ -782,8 +778,8 @@ function parseLoot() {
   if (!found.length) { alert('無法解析，請確認格式如：黑龍 3。紅三 1。'); return; }
   found.forEach(f => {
     const dbEntry = S.itemDB.find(i => i.name===f.name || i.shortName===f.name);
-    const ex = S.items.find(i => i.dbId===(dbEntry?.id) || i.name===f.name);
-    if (ex) { ex.qty = f.qty; }
+    const exItem = S.items.find(i => i.dbId===(dbEntry?.id) || i.name===f.name);
+    if (exItem) { exItem.qty = f.qty; }
     else if (dbEntry) {
       S.items.push({id:uid(), dbId:dbEntry.id, name:dbEntry.name, shortName:dbEntry.shortName||dbEntry.name,
         tier:dbEntry.tier, perMemberLimit:dbEntry.perMemberLimit, hasCD:dbEntry.hasCD, cdDays:dbEntry.cdDays, qty:f.qty});
@@ -914,8 +910,7 @@ function memberClick(mid) {
   document.getElementById('modalInfo').innerHTML =
     `成員：<strong>${member.name}</strong>${grpInfo}<br>物品：<strong style="color:var(--gold)">${item.name}</strong> ${tierBadge}${item.hasCD?'&nbsp;<span style="color:var(--orange);font-size:.72rem">⏳ CD</span>':''}<br><span style="font-size:.72rem;color:var(--text3)">本場已標 ${tier==='purple'?'紫':'藍'}色：${tierCount}/${tierLimit}顆</span>`;
   document.getElementById('modalDate').value = getSelectedDate();
-  const ses = viewSession||S.session||'noon';
-  // Set session as readonly display — cannot be changed
+  // ses already declared above, reuse it
   document.getElementById('modalSes').value = ses;
   const sesLabels = {noon:'☀️ 中午場', evening:'🌙 晚上場', king:'👑 聯盟王拍賣'};
   document.getElementById('modalSesDisplay').textContent = sesLabels[ses]||ses;
