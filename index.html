@@ -182,14 +182,14 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
   </div>
   <button class="ses-tag" id="btnNoon" onclick="setSession('noon')">☀️ 中午場</button>
   <button class="ses-tag" id="btnEvening" onclick="setSession('evening')">🌙 晚上場</button>
-  <button class="ses-tag" id="btnKing" onclick="setSession('king')">👑 聯盟王</button>
   <span id="sesInfo" style="font-size:.72rem;color:var(--text3);margin-left:auto;"></span>
 </div>
 
 <div class="main-tabs">
   <button class="tab-btn active" id="t0" onclick="gotoTab(0)">🎁 競標</button>
-  <button class="tab-btn" id="t1" onclick="gotoTab(1)">⏳ CD</button>
-  <button class="tab-btn" id="t2" onclick="gotoTab(2)">⚙️ 設定</button>
+  <button class="tab-btn" id="t1" onclick="gotoTab(1)">👑 聯盟王</button>
+  <button class="tab-btn" id="t2" onclick="gotoTab(2)">⏳ CD</button>
+  <button class="tab-btn" id="t3" onclick="gotoTab(3)">⚙️ 設定</button>
 </div>
 
 <!-- PAGE 0: 競標 -->
@@ -240,11 +240,61 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
   <div id="cdSection"></div>
 </div>
 
-<!-- PAGE 1: CD -->
-<div class="page" id="p1"><div id="cdContent"></div></div>
+<!-- PAGE 1: 聯盟王拍賣 -->
+<div class="page" id="p1">
+  <div class="card">
+    <div class="card-title">👑 聯盟王拍賣 <span id="kingDateBadge" style="font-size:.72rem;color:var(--text3);font-weight:400"></span></div>
+    <div class="notice info" style="font-size:.75rem">同一件裝備可能有多個版本（不同屬性），競標時選擇想要的第幾件。<br>競標名單僅供參考，不限制下標資格。</div>
+  </div>
 
-<!-- PAGE 2: 設定 -->
-<div class="page" id="p2">
+  <div class="card">
+    <div class="card-title">📋 貼上聯盟王戰利品</div>
+    <textarea id="kingPasteInput" rows="3" style="width:100%;resize:vertical;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:10px;font-size:.85rem;font-family:inherit;color:var(--text);line-height:1.6" placeholder="貼上聯盟王的戰利品統計..."></textarea>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-gold" style="flex:1" onclick="parseKingLoot()">✦ 解析</button>
+      <button class="btn btn-gray btn-sm" onclick="clearKingLoot()">清除</button>
+    </div>
+  </div>
+
+  <div id="kingLootSection" style="display:none">
+    <div class="notice" id="kingSelHint">← 點選裝備，選想要的件數（可多選），再點成員</div>
+    <div class="loot-grid" id="kingLootGrid"></div>
+
+    <!-- 件數選擇（可多選） -->
+    <div class="card" style="margin-top:8px;display:none" id="kingSlotCard">
+      <div class="card-title">🔢 選擇件數 <span style="font-size:.72rem;font-weight:400;color:var(--text3)">可多選</span></div>
+      <div id="kingSlotGrid" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+    </div>
+
+    <div class="card" style="margin-top:8px">
+      <div class="card-title" style="justify-content:space-between">
+        <span>👥 選擇成員</span>
+        <div style="display:flex;gap:8px">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:.72rem;color:var(--text2);font-weight:400">
+            <input type="radio" name="kingMDisp" value="short" checked onchange="renderKingMemberGrid()"> 簡稱
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:.72rem;color:var(--text2);font-weight:400">
+            <input type="radio" name="kingMDisp" value="full" onchange="renderKingMemberGrid()"> 全名
+          </label>
+        </div>
+      </div>
+      <input type="text" id="kingMemberSearch" placeholder="搜尋成員..." style="width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:.85rem;font-family:inherit;margin-bottom:10px" oninput="renderKingMemberGrid()">
+      <div class="member-grid" id="kingMemberGrid"></div>
+    </div>
+
+    <!-- 已競標結果 -->
+    <div id="kingResults"></div>
+
+    <!-- 優先輪次 -->
+    <div id="kingPriority"></div>
+  </div>
+</div>
+
+<!-- PAGE 2: CD -->
+<div class="page" id="p2"><div id="cdContent"></div></div>
+
+<!-- PAGE 3: 設定 -->
+<div class="page" id="p3">
   <div class="card">
     <div class="card-title">🗂 資料管理</div>
     <div class="notice" style="font-size:.75rem;background:var(--red-bg);border-color:var(--red-bd);color:var(--red)">⚠️ 完全重置會清除所有競標紀錄、戰利品、CD追蹤（成員和群組設定保留）</div>
@@ -320,6 +370,34 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
       <button class="btn btn-red" style="flex:1" onclick="deleteBidFromModal()">🗑 刪除</button>
       <button class="btn btn-gray" style="flex:1" onclick="closeEditBidModal()">取消</button>
       <button class="btn btn-gold" style="flex:1" onclick="confirmEditBid()">✓ 確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: king bid -->
+<div class="modal-bg" id="kingBidModal" style="display:none" onclick="if(event.target===this)closeKingModal()">
+  <div class="modal">
+    <h3>👑 登記聯盟王競標</h3>
+    <div class="modal-info" id="kingModalInfo"></div>
+    <div class="settings-row">
+      <label class="settings-label">日期</label>
+      <input type="date" id="kingModalDate">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" style="flex:1" onclick="closeKingModal()">取消</button>
+      <button class="btn btn-gold" style="flex:2" onclick="confirmKingBid()">✓ 確認競標</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: delete confirm -->
+<div class="modal-bg" id="deleteConfirmModal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <h3>🗑 確認刪除</h3>
+    <div class="modal-info" id="deleteConfirmInfo"></div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" style="flex:1" onclick="document.getElementById('deleteConfirmModal').style.display='none'">取消</button>
+      <button class="btn btn-red" style="flex:2" onclick="confirmDeleteBid()">確認刪除</button>
     </div>
   </div>
 </div>
@@ -646,8 +724,8 @@ function setSelectedDate(d) {
   renderMemberGrid();
   renderSessionResults();
   renderCDSection();
-  
-  if (currentTab===1) renderCD();
+  if (currentTab===1) renderKingPage();
+  if (currentTab===2) renderCD();
 }
 
 function shiftDate(days) {
@@ -677,12 +755,11 @@ initFirebase();
 
 // ===== SESSION =====
 function updateSessionUI(s) {
-  // Pure UI update, no save
-  ['noon','evening','king'].forEach(x => {
-    const map = {noon:'btnNoon',evening:'btnEvening',king:'btnKing'};
+  ['noon','evening'].forEach(x => {
+    const map = {noon:'btnNoon',evening:'btnEvening'};
     document.getElementById(map[x]).className = 'ses-tag' + (s===x ? ' '+x : '');
   });
-  const labels = {noon:'☀️ 中午場',evening:'🌙 晚上場',king:'👑 聯盟王'};
+  const labels = {noon:'☀️ 中午場',evening:'🌙 晚上場'};
   document.getElementById('sesInfo').textContent = labels[s]||'';
   const modalSes = document.getElementById('modalSes');
   if (modalSes) modalSes.value = s;
@@ -715,8 +792,9 @@ function gotoTab(n) {
   currentTab = n;
   document.querySelectorAll('.page').forEach((p,i) => p.classList.toggle('active', i===n));
   document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===n));
-  if (n===1) renderCD();
-  if (n===2) renderSettings();
+  if (n===1) renderKingPage();
+  if (n===2) renderCD();
+  if (n===3) renderSettings();
 }
 
 // ===== PARSE =====
@@ -1018,8 +1096,8 @@ function renderSessionResults() {
     </div>`;
   }
 
-  // --- Priority (based on selected date only) ---
-  if ((ses==='evening'||ses==='king') && S.members.length) {
+  // --- Priority (evening only now, king is separate page) ---
+  if (ses==='evening' && S.members.length) {
     html += renderPrioritySection(ses, selDate);
   }
 
@@ -1172,107 +1250,28 @@ function copyEl(id, btn) {
   });
 }
 
-// ===== LOG (today's summary only) =====
-function renderLog() {
-  const el = document.getElementById('logContent');
-  if (!el) return;
-
-  // Always show today's data only
-  const today = (() => {
-    const n = new Date();
-    const y = n.getFullYear();
-    const m = String(n.getMonth()+1).padStart(2,'0');
-    const d = String(n.getDate()).padStart(2,'0');
-    return `${y}-${m}-${d}`;
-  })();
-  const todayLabel = today.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$2/$3');
-
-  const useShort = document.querySelector('input[name="outFmt"]:checked')?.value !== 'full';
-  const sessions = [
-    {key:'noon', label:'☀️ 中午場'},
-    {key:'evening', label:'🌙 晚上場'},
-    {key:'king', label:'👑 聯盟王拍賣'},
-  ];
-
-  let html = `<div style="font-size:.78rem;color:var(--text3);text-align:center;padding:4px 0 10px">📅 顯示今天 ${todayLabel} 的紀錄</div>`;
-  let hasAny = false;
-
-  sessions.forEach(({key, label}) => {
-    // Only today's bids, exclude cdOnly
-    const sesBids = S.bids.filter(b=>b.session===key && b.date===today && !b.cdOnly);
-    if (!sesBids.length) return;
-    hasAny = true;
-
-    // Output text (for copy)
-    const byItem = {};
-    sesBids.forEach(b => {
-      if (!byItem[b.itemId]) byItem[b.itemId] = {name: b.itemShort||b.itemName||'?', bids:[]};
-      byItem[b.itemId].bids.push(b);
-    });
-    const resultText = Object.values(byItem).map(({name, bids}) => {
-      bids.sort((a,b)=>a.ts-b.ts);
-      const names = bids.map((b,i)=>{ const m=getMember(b.memberId); return (m?getMLabel(m):'?')+(i+1); });
-      return `${name}(${names.join('/')})`;
-    }).join(' ');
-
-    const boxId = `log_${key}`;
-    html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-      <div class="sec-label" style="margin:0">${label}</div>
-      <button class="btn btn-red btn-sm" style="font-size:.68rem" onclick="clearOneSesLog('${key}','${label}','${today}')">🗑 清除本場</button>
-    </div>
-    <div class="output-box" id="${boxId}">${resultText}</div>
-    <button class="copy-btn" onclick="copyEl('${boxId}',this)">📋 複製${label}結果</button>`;
-
-    // Editable bid list
-    html += `<div style="margin-bottom:12px">`;
-    sesBids.sort((a,b)=>a.ts-b.ts).forEach(b => {
-      const m = getMember(b.memberId);
-      const itemName = b.itemShort||b.itemName||'?';
-      const mName_ = m ? (useShort && m.shortName && m.shortName!==m.name ? m.shortName : m.name) : '?';
-      html += `<div class="bid-item" style="font-size:.78rem">
-        <span style="flex:1"><strong>${itemName}</strong> ← ${mName_}</span>
-        <button class="btn btn-gray btn-sm" style="margin-right:4px;font-size:.68rem" onclick="editBidModal('${b.id}')">✏️</button>
-        <button class="del-btn" onclick="deleteBidConfirm('${b.id}')">✕</button>
-      </div>`;
-    });
-    html += `</div>`;
-  });
-
-  if (!hasAny) {
-    html += `<div class="empty">今天 ${todayLabel} 尚無競標紀錄</div>`;
-  }
-
-  // CD unlock (all active, not just today)
-  const cdText = buildCDUnlock();
-  html += `<div class="sec-label">⏳ CD解禁日期</div>
-    <div class="output-box" id="log_cd">${cdText}</div>
-    <button class="copy-btn" onclick="copyEl('log_cd',this)">📋 複製CD名單</button>`;
-
-  el.innerHTML = html;
-}
-
-function clearOneSesLog(ses, label, date) {
-  const count = S.bids.filter(b=>b.session===ses && b.date===date && !b.cdOnly).length;
-  if (!count) { alert('此場次今天沒有競標紀錄'); return; }
-  if (!confirm(`確認清除${label}今天的所有競標紀錄？（共${count}筆）\nCD紀錄會保留。`)) return;
-  S.bids = S.bids.map(b => {
-    if (b.session===ses && b.date===date && b.hasCD) return {...b, cdOnly: true};
-    return b;
-  }).filter(b => !(b.session===ses && b.date===date && !b.hasCD));
-  save(); renderLootGrid(); renderMemberGrid(); renderSessionResults(); renderCDSection();
-  renderLog();
-}
 
 function deleteBidConfirm(id) {
   const bid = S.bids.find(b=>b.id===id);
   if (!bid) return;
   const m = getMember(bid.memberId);
   const itemName = bid.itemShort||bid.itemName||'?';
-  if (!confirm(`確認刪除？\n物品：${itemName}\n成員：${m?.name||'?'}`)) return;
+  const mName_ = m?.name||'?';
+  // Show confirm modal instead of native confirm() (blocked on iOS Safari silent mode)
+  document.getElementById('deleteConfirmInfo').innerHTML =
+    `物品：<strong>${itemName}</strong><br>成員：<strong>${mName_}</strong>`;
+  document.getElementById('deleteConfirmModal')._targetId = id;
+  document.getElementById('deleteConfirmModal').style.display = 'flex';
+}
+
+function confirmDeleteBid() {
+  const id = document.getElementById('deleteConfirmModal')._targetId;
+  document.getElementById('deleteConfirmModal').style.display = 'none';
   S.bids = S.bids.filter(b=>b.id!==id);
-  save(); renderLootGrid(); renderMemberGrid(); renderSessionResults(); renderCDSection();
-  
-  if (currentTab===1) renderCD();
+  save();
+  renderLootGrid(); renderMemberGrid(); renderSessionResults(); renderCDSection();
+  if (currentTab===1) renderKingPage();
+  if (currentTab===2) renderCD();
 }
 
 // ===== CD =====
@@ -1619,8 +1618,8 @@ function confirmEditBid() {
   bid.date = document.getElementById('editBidDate').value;
   closeEditBidModal();
   save(); renderLootGrid(); renderMemberGrid(); renderSessionResults(); renderCDSection();
-  
-  if (currentTab===1) renderCD();
+  if (currentTab===1) renderKingPage();
+  if (currentTab===2) renderCD();
 }
 
 function deleteBidFromModal() {
@@ -1629,8 +1628,293 @@ function deleteBidFromModal() {
   S.bids = S.bids.filter(b=>b.id!==bidId);
   closeEditBidModal();
   save(); renderLootGrid(); renderMemberGrid(); renderSessionResults(); renderCDSection();
-  
-  if (currentTab===1) renderCD();
+  if (currentTab===1) renderKingPage();
+  if (currentTab===2) renderCD();
+}
+
+// ===== KING PAGE STATE =====
+let kingSelectedItemId = null;
+let kingSelectedSlots = new Set(); // multi-select
+let kingPendingBid = null;
+
+function getKingDate() { return selectedDate; }
+
+function parseKingLoot() {
+  const raw = document.getElementById('kingPasteInput').value.trim();
+  if (!raw) { alert('請先貼上戰利品統計'); return; }
+
+  const found = [];
+
+  // Split by common separators: 。．，,、; and newlines
+  const parts = raw.split(/[。．，,、;\n]+/).map(s=>s.trim()).filter(Boolean);
+
+  parts.forEach(part => {
+    // Try to extract name + number: e.g. "高飾石2" or "高飾石 2" or "高飾石"
+    const m = part.match(/^([^\d]+?)\s*(\d+)?$/);
+    if (!m) return;
+    const rn = m[1].trim().replace(/[：:＝=]/g,'');
+    if (!rn) return;
+    const qty = m[2] ? parseInt(m[2]) : 1; // default 1 if no number
+    if (qty > 99) return;
+    const canonical = resolveAlias(rn);
+    const ex = found.find(f=>f.name===canonical);
+    if (ex) ex.qty = Math.max(ex.qty, qty);
+    else found.push({name:canonical, qty, rawInput:rn});
+  });
+
+  if (!found.length) { alert('無法解析，請確認格式'); return; }
+  const date = getKingDate();
+  const key = getDateSesKey(date, 'king');
+  const items = found.map(f => {
+    const dbEntry = S.itemDB.find(i=>i.name===f.name||i.shortName===f.name);
+    return {
+      id: uid(), dbId: dbEntry?.id||null,
+      name: dbEntry?.name||f.name,
+      shortName: dbEntry?.shortName||f.rawInput||f.name,
+      tier: dbEntry?.tier||'blue',
+      hasCD: dbEntry?.hasCD||false,
+      cdDays: dbEntry?.cdDays||3,
+      qty: f.qty
+    };
+  });
+  S.sessionItems[key] = items;
+  S.pasteTexts[key] = raw;
+  save();
+  document.getElementById('kingLootSection').style.display = '';
+  renderKingPage();
+}
+
+function clearKingLoot() {
+  const key = getDateSesKey(selectedDate, 'king');
+  document.getElementById('kingPasteInput').value = '';
+  S.pasteTexts[key] = '';
+  S.sessionItems[key] = [];
+  kingSelectedItemId = null; kingSelectedSlots = new Set();
+  document.getElementById('kingLootSection').style.display = 'none';
+  save(); renderKingPage();
+}
+
+function renderKingPage() {
+  const date = getKingDate();
+  const dateLabel = date.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$2/$3');
+  const badgeEl = document.getElementById('kingDateBadge');
+  if (badgeEl) badgeEl.textContent = dateLabel;
+  const key = getDateSesKey(date, 'king');
+  const kingItems = S.sessionItems[key] || [];
+  const pasteEl = document.getElementById('kingPasteInput');
+  if (pasteEl && document.activeElement !== pasteEl) pasteEl.value = S.pasteTexts[key] || '';
+  const hasItems = kingItems.length > 0;
+  document.getElementById('kingLootSection').style.display = hasItems ? '' : 'none';
+  if (!hasItems) return;
+  renderKingLootGrid(kingItems, date);
+  renderKingSlotGrid();
+  renderKingMemberGrid();
+  renderKingResults(kingItems, date);
+  renderKingPriority(date);
+}
+
+function renderKingLootGrid(items, date) {
+  const grid = document.getElementById('kingLootGrid');
+  if (!grid) return;
+  grid.innerHTML = items.map(item => {
+    const totalBids = S.bids.filter(b=>b.itemId===item.id&&b.session==='king'&&b.date===date&&!b.cdOnly).length;
+    const rem = item.qty - totalBids;
+    const sel = kingSelectedItemId === item.id;
+    const tier = item.tier||'blue';
+    const dot = tier==='purple'?'🟣':'🔵';
+    return `<div class="loot-card ${sel?'selected':''} ${rem<=0?'full':''} ${item.hasCD?'cd-item':''} ${tier==='purple'?'purple-item':''}"
+      onclick="selectKingItem('${item.id}')">
+      <div class="loot-name">${dot} ${item.name}</div>
+      <div class="loot-meta">
+        ${item.hasCD?`<span class="pill pill-cd">CD ${item.cdDays}天</span>`:''}
+        <span class="pill ${rem<=0?'pill-full':'pill-remain'}">${rem<=0?'已滿':rem+'/'+item.qty}</span>
+        <span class="pill" style="background:#f0f0f0;color:#888;font-size:.58rem">${item.qty}件</span>
+      </div>
+    </div>`;
+  }).join('');
+  updateKingSelHint();
+}
+
+function selectKingItem(id) {
+  kingSelectedItemId = kingSelectedItemId===id ? null : id;
+  kingSelectedSlots = new Set();
+  renderKingLootGrid(S.sessionItems[getDateSesKey(selectedDate,'king')]||[], selectedDate);
+  renderKingSlotGrid();
+  renderKingMemberGrid();
+  updateKingSelHint();
+}
+
+function renderKingSlotGrid() {
+  const card = document.getElementById('kingSlotCard');
+  if (!kingSelectedItemId) { card.style.display='none'; return; }
+  const item = (S.sessionItems[getDateSesKey(selectedDate,'king')]||[]).find(i=>i.id===kingSelectedItemId);
+  if (!item) { card.style.display='none'; return; }
+  card.style.display = '';
+  const date = selectedDate;
+  const slots = Array.from({length:item.qty},(_,i)=>i+1);
+  document.getElementById('kingSlotGrid').innerHTML = slots.map(slot => {
+    const slotBid = S.bids.find(b=>b.itemId===kingSelectedItemId&&b.session==='king'&&b.date===date&&b.itemSlot===slot&&!b.cdOnly);
+    const bidderName = slotBid ? (()=>{const m=getMember(slotBid.memberId); return m?mName(m,'short'):'?';})() : '';
+    const sel = kingSelectedSlots.has(slot);
+    const taken = !!slotBid;
+    return `<div onclick="toggleKingSlot(${slot})" style="min-width:72px;flex:1;padding:10px 6px;
+      background:${sel?'var(--gold-bg)':taken?'var(--red-bg)':'var(--card)'};
+      border:2px solid ${sel?'var(--gold-bd)':taken?'var(--red-bd)':'var(--border)'};
+      border-radius:10px;text-align:center;cursor:pointer;transition:all .12s;position:relative">
+      ${sel?'<div style=\"position:absolute;top:3px;right:5px;font-size:.65rem;color:var(--gold)\">✓</div>':''}
+      <div style="font-weight:900;font-size:.95rem;color:${sel?'var(--gold)':taken?'var(--red)':'var(--text)'}">#${slot}</div>
+      <div style="font-size:.65rem;color:var(--text3);margin-top:2px;min-height:14px">${taken?bidderName:'空'}</div>
+    </div>`;
+  }).join('');
+  updateKingSelHint();
+}
+
+function toggleKingSlot(slot) {
+  if (kingSelectedSlots.has(slot)) kingSelectedSlots.delete(slot);
+  else kingSelectedSlots.add(slot);
+  renderKingSlotGrid();
+  updateKingSelHint();
+}
+
+function updateKingSelHint() {
+  const hint = document.getElementById('kingSelHint');
+  if (!hint) return;
+  if (!kingSelectedItemId) { hint.innerHTML='← 點選裝備，選件數（可多選），再點成員'; return; }
+  const item = (S.sessionItems[getDateSesKey(selectedDate,'king')]||[]).find(i=>i.id===kingSelectedItemId);
+  if (!item) return;
+  if (kingSelectedSlots.size === 0) { hint.innerHTML=`已選：<strong>${item.name}</strong>　⬇️ 選擇想要的件數（可多選）`; return; }
+  const slotList = [...kingSelectedSlots].sort((a,b)=>a-b).map(s=>`#${s}`).join(' ');
+  hint.innerHTML=`已選：<strong>${item.name}</strong> <span style="color:var(--gold);font-weight:700">${slotList}</span>　⬇️ 點成員競標`;
+}
+
+function renderKingMemberGrid() {
+  const search = (document.getElementById('kingMemberSearch')?.value||'').toLowerCase();
+  const grid = document.getElementById('kingMemberGrid');
+  if (!grid) return;
+  const date = selectedDate;
+  const useShort = document.querySelector('input[name="kingMDisp"]:checked')?.value !== 'full';
+  const filtered = S.members.filter(m=>
+    m.name.toLowerCase().includes(search)||(m.shortName&&m.shortName.toLowerCase().includes(search))
+  );
+  grid.innerHTML = filtered.map(m => {
+    const bc = S.bids.filter(b=>b.memberId===m.id&&b.session==='king'&&b.date===date&&!b.cdOnly).length;
+    const displayName = useShort && m.shortName && m.shortName!==m.name ? m.shortName : m.name;
+    return `<div class="member-chip ${bc>0?'has-bid':''}" onclick="kingMemberClick('${m.id}')">
+      ${bc>0?`<span class="bid-count">${bc}</span>`:''}${displayName}
+    </div>`;
+  }).join('');
+}
+
+function kingMemberClick(mid) {
+  if (!kingSelectedItemId) { alert('請先點選裝備！'); return; }
+  if (kingSelectedSlots.size === 0) { alert('請先選擇件數！'); return; }
+  const item = (S.sessionItems[getDateSesKey(selectedDate,'king')]||[]).find(i=>i.id===kingSelectedItemId);
+  const member = getMember(mid);
+  if (!item||!member) return;
+  const date = selectedDate;
+  const slots = [...kingSelectedSlots].sort((a,b)=>a-b);
+  const conflicts = slots.filter(slot=>
+    S.bids.find(b=>b.itemId===kingSelectedItemId&&b.session==='king'&&b.date===date&&b.itemSlot===slot&&!b.cdOnly)
+  );
+  const slotList = slots.map(s=>'#'+s).join(' ');
+  document.getElementById('kingModalInfo').innerHTML =
+    `裝備：<strong>${item.name}</strong><br>
+     件數：<strong style="color:var(--gold)">${slotList}</strong><br>
+     成員：<strong>${member.name}</strong>
+     ${conflicts.length?`<br><span style="color:var(--red);font-size:.75rem">⚠️ 件數 ${conflicts.map(s=>'#'+s).join(' ')} 已有競標，確認後覆蓋</span>`:''}`;
+  document.getElementById('kingModalDate').value = date;
+  kingPendingBid = {memberId: mid, itemId: kingSelectedItemId, slots};
+  document.getElementById('kingBidModal').style.display = 'flex';
+}
+
+function closeKingModal() {
+  document.getElementById('kingBidModal').style.display = 'none';
+  kingPendingBid = null;
+}
+
+function confirmKingBid() {
+  if (!kingPendingBid) return;
+  const item = (S.sessionItems[getDateSesKey(selectedDate,'king')]||[]).find(i=>i.id===kingPendingBid.itemId);
+  if (!item) { closeKingModal(); return; }
+  const date = document.getElementById('kingModalDate').value;
+  kingPendingBid.slots.forEach(slot => {
+    S.bids = S.bids.filter(b=>!(b.itemId===kingPendingBid.itemId&&b.session==='king'&&b.date===date&&b.itemSlot===slot&&!b.cdOnly));
+    S.bids.push({
+      id: uid(), memberId: kingPendingBid.memberId,
+      itemId: kingPendingBid.itemId,
+      itemName: item.name, itemShort: item.shortName||item.name,
+      itemSlot: slot, session: 'king', date,
+      hasCD: item.hasCD||false, cdDays: item.cdDays||3, ts: Date.now()
+    });
+  });
+  closeKingModal();
+  kingSelectedSlots = new Set();
+  save(); renderKingPage(); renderCDSection();
+  if (currentTab===2) renderCD();
+}
+
+function renderKingResults(items, date) {
+  const el = document.getElementById('kingResults');
+  if (!el) return;
+  const kingBids = S.bids.filter(b=>b.session==='king'&&b.date===date&&!b.cdOnly);
+  if (!kingBids.length) { el.innerHTML=''; return; }
+  const byItem = {};
+  kingBids.forEach(b=>{
+    if (!byItem[b.itemId]) byItem[b.itemId]={name:b.itemShort||b.itemName||'?', byMember:{}};
+    const k = b.memberId;
+    if (!byItem[b.itemId].byMember[k]) byItem[b.itemId].byMember[k]={mem:getMember(b.memberId),slots:[]};
+    byItem[b.itemId].byMember[k].slots.push(b.itemSlot);
+  });
+  const resultText = Object.values(byItem).map(({name,byMember})=>{
+    const parts = Object.values(byMember).map(({mem,slots})=>{
+      const n = mem?mName(mem,'short'):'?';
+      return `${n}${slots.sort((a,b)=>a-b).join('')}`;
+    });
+    return `${name}（${parts.join('/')}）`;
+  }).join('。')+'。';
+  let html = `<div class="card"><div class="card-title">✅ 已競標 <span style="font-size:.75rem;color:var(--text3);font-weight:400">👑 聯盟王 · ${date.replace(/^(\d{4})-(\d{2})-(\d{2})$/,'$2/$3')}</span></div>
+    <div class="output-box" id="kingResultCopy" style="font-size:.78rem">${resultText}</div>
+    <button class="copy-btn" onclick="copyEl('kingResultCopy',this)">📋 複製聯盟王結果</button>
+    <div style="margin-top:8px">`;
+  items.forEach(item=>{
+    const itemBids = kingBids.filter(b=>b.itemId===item.id);
+    if (!itemBids.length) return;
+    html += `<div style="padding:6px 0;border-bottom:1px solid var(--border)"><span style="font-weight:700;font-size:.8rem">${item.shortName||item.name}</span></div>`;
+    Array.from({length:item.qty},(_,i)=>i+1).forEach(slot=>{
+      const bid = itemBids.find(b=>b.itemSlot===slot);
+      if (!bid) return;
+      const mem=getMember(bid.memberId);
+      html += `<div class="bid-item" style="font-size:.78rem;padding:4px 0 4px 12px">
+        <span style="flex:1"><span style="color:var(--text3)">#${slot}</span> ← <strong>${mem?mName(mem,'short'):'?'}</strong></span>
+        <button class="btn btn-gray btn-sm" style="font-size:.65rem;margin-right:4px" onclick="editBidModal('${bid.id}')">✏️</button>
+        <button class="del-btn" onclick="deleteBidConfirm('${bid.id}')">✕</button>
+      </div>`;
+    });
+  });
+  html += `</div></div>`;
+  el.innerHTML = html;
+}
+
+function renderKingPriority(date) {
+  const el = document.getElementById('kingPriority');
+  if (!el || !S.members.length) { if(el) el.innerHTML=''; return; }
+  const noonIds = new Set(S.bids.filter(b=>b.session==='noon'&&b.date===date&&!b.cdOnly).map(b=>b.memberId));
+  const eveningIds = new Set(S.bids.filter(b=>b.session==='evening'&&b.date===date&&!b.cdOnly).map(b=>b.memberId));
+  const r1=[], r2=[];
+  S.members.forEach(m=>{ (noonIds.has(m.id)||eveningIds.has(m.id)) ? r2.push(m) : r1.push(m); });
+  const chips=(arr,cls)=>arr.map(m=>`<span class="m-chip ${cls}">${mName(m,'short')}</span>`).join('');
+  el.innerHTML=`<div class="card"><div class="card-title">🏆 競標優先順序</div>
+    <div class="priority-section">
+      <div class="priority-title" style="color:var(--gold)">🥇 第一輪 <span style="font-size:.68rem;font-weight:400;color:var(--text3)">今天中午/晚上都未競標</span> <span style="font-size:.7rem;font-weight:700">${r1.length}人</span></div>
+      <div class="member-chips-wrap" style="margin-bottom:6px">${r1.length?chips(r1,'r1'):'<span style="color:var(--text3);font-size:.75rem">無</span>'}</div>
+      ${r1.length?`<div class="output-box" id="kingR1" style="font-size:.78rem;padding:8px">${r1.map(m=>mName(m,'short')).join(' ')}</div><button class="copy-btn" style="margin-bottom:0" onclick="copyEl('kingR1',this)">📋 複製第一輪</button>`:''}
+    </div>
+    <div class="priority-section" style="margin-top:10px">
+      <div class="priority-title" style="color:var(--purple)">🥈 第二輪 <span style="font-size:.68rem;font-weight:400;color:var(--text3)">今天中午或晚上有競標過</span> <span style="font-size:.7rem;font-weight:700">${r2.length}人</span></div>
+      <div class="member-chips-wrap" style="margin-bottom:6px">${r2.length?chips(r2,'r2'):'<span style="color:var(--text3);font-size:.75rem">無</span>'}</div>
+      ${r2.length?`<div class="output-box" id="kingR2" style="font-size:.78rem;padding:8px">${r2.map(m=>mName(m,'short')).join(' ')}</div><button class="copy-btn" style="margin-bottom:0" onclick="copyEl('kingR2',this)">📋 複製第二輪</button>`:''}
+    </div>
+  </div>`;
 }
 
 // ===== RENDER ALL =====
@@ -1643,11 +1927,9 @@ function renderAll() {
   if (S.session) updateSessionUI(S.session);
   if (!viewSession) viewSession = S.session || 'noon';
 
-  // Keep date display in sync
   const dispEl = document.getElementById('sessionDateDisplay');
   if (dispEl) dispEl.textContent = formatDateDisplay(selectedDate);
 
-  // Sync paste text for current date+session
   const pasteEl = document.getElementById('pasteInput');
   if (pasteEl && document.activeElement !== pasteEl) {
     pasteEl.value = S.pasteTexts[key] || '';
@@ -1657,8 +1939,9 @@ function renderAll() {
   if (notesEl && document.activeElement !== notesEl) notesEl.value = S.notes || '';
 
   renderLootGrid(); renderMemberGrid(); renderSessionResults(); renderCDSection();
-  if (currentTab===1) renderCD();
-  if (currentTab===2) renderSettings();
+  if (currentTab===1) renderKingPage();
+  if (currentTab===2) renderCD();
+  if (currentTab===3) renderSettings();
 }
 </script>
 </body>
