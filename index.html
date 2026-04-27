@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
@@ -189,13 +188,11 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 
 <div class="main-tabs">
   <button class="tab-btn active" id="t0" onclick="gotoTab(0)">🎁 競標</button>
-  <button class="tab-btn" id="t1" onclick="gotoTab(1)">📋 紀錄</button>
-  <button class="tab-btn" id="t2" onclick="gotoTab(2)">⏳ CD</button>
-  <button class="tab-btn" id="t3" onclick="gotoTab(3)">⚙️ 設定</button>
+  <button class="tab-btn" id="t1" onclick="gotoTab(1)">⏳ CD</button>
+  <button class="tab-btn" id="t2" onclick="gotoTab(2)">⚙️ 設定</button>
 </div>
 
 <!-- PAGE 0: 競標 -->
-
 <div class="page active" id="p0">
   <!-- 筆記 -->
   <div class="card">
@@ -204,7 +201,6 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
   </div>
 
   <!-- 貼上解析 -->
-
   <div class="card">
     <div class="card-title">📋 貼上戰利品統計</div>
     <textarea id="pasteInput" rows="3" style="width:100%;resize:vertical;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:10px;font-size:.85rem;font-family:inherit;color:var(--text);line-height:1.6" placeholder="黑龍 3。紅三 1。紅二 5。射手 7。食人魔 5。刺客 6。地精 2。紅一 11。"></textarea>
@@ -215,66 +211,40 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
   </div>
 
   <!-- 競標區（解析後顯示） -->
-
   <div id="lootSection" style="display:none">
     <!-- 本場登記 -->
     <div class="notice" id="selHint">← 點選下方戰利品，再選成員登記競標</div>
     <div class="loot-grid" id="lootGrid"></div>
 
-```
-<div class="card" style="margin-top:10px">
-  <div class="card-title" style="justify-content:space-between">
-    <span>👥 選擇成員</span>
-    <div style="display:flex;gap:8px">
-      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:.72rem;color:var(--text2);font-weight:400">
-        <input type="radio" name="mDisp" value="short" checked onchange="renderMemberGrid()"> 簡稱
-      </label>
-      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:.72rem;color:var(--text2);font-weight:400">
-        <input type="radio" name="mDisp" value="full" onchange="renderMemberGrid()"> 全名
-      </label>
+    <div class="card" style="margin-top:10px">
+      <div class="card-title" style="justify-content:space-between">
+        <span>👥 選擇成員</span>
+        <div style="display:flex;gap:8px">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:.72rem;color:var(--text2);font-weight:400">
+            <input type="radio" name="mDisp" value="short" checked onchange="renderMemberGrid()"> 簡稱
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:.72rem;color:var(--text2);font-weight:400">
+            <input type="radio" name="mDisp" value="full" onchange="renderMemberGrid()"> 全名
+          </label>
+        </div>
+      </div>
+      <input type="text" class="member-search" id="memberSearch" placeholder="搜尋成員..." oninput="renderMemberGrid()">
+      <div class="member-grid" id="memberGrid"></div>
     </div>
-  </div>
-  <input type="text" class="member-search" id="memberSearch" placeholder="搜尋成員..." oninput="renderMemberGrid()">
-  <div class="member-grid" id="memberGrid"></div>
-</div>
-```
-
   </div>
 
   <!-- 場次結果（隨日期/場次切換） -->
-
   <div id="sessionResults"></div>
 
   <!-- CD解禁（固定顯示，不受場次切換影響） -->
-
   <div id="cdSection"></div>
 </div>
 
-<!-- PAGE 1: 紀錄（三場總結果） -->
+<!-- PAGE 1: CD -->
+<div class="page" id="p1"><div id="cdContent"></div></div>
 
-<div class="page" id="p1">
-  <div class="card">
-    <div class="card-title">📋 三場競標總結果</div>
-    <div class="toggle-row">
-      <span style="font-size:.75rem;color:var(--text2);">名稱格式：</span>
-      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:.78rem">
-        <input type="radio" name="outFmt" value="short" checked onchange="renderLog()"> 簡稱
-      </label>
-      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:.78rem">
-        <input type="radio" name="outFmt" value="full" onchange="renderLog()"> 全名
-      </label>
-    </div>
-    <div id="logContent"></div>
-  </div>
-</div>
-
-<!-- PAGE 2: CD -->
-
-<div class="page" id="p2"><div id="cdContent"></div></div>
-
-<!-- PAGE 3: 設定 -->
-
-<div class="page" id="p3">
+<!-- PAGE 2: 設定 -->
+<div class="page" id="p2">
   <div class="card">
     <div class="card-title">🗂 資料管理</div>
     <div class="notice" style="font-size:.75rem;background:var(--red-bg);border-color:var(--red-bd);color:var(--red)">⚠️ 完全重置會清除所有競標紀錄、戰利品、CD追蹤（成員和群組設定保留）</div>
@@ -334,7 +304,6 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 </div>
 
 <!-- MODAL: edit bid -->
-
 <div class="modal-bg" id="editBidModal" style="display:none" onclick="if(event.target===this)closeEditBidModal()">
   <div class="modal">
     <h3>✏️ 修改競標</h3>
@@ -356,7 +325,6 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 </div>
 
 <!-- MODALS -->
-
 <div class="modal-bg" id="bidModal" style="display:none" onclick="if(event.target===this)closeModal()">
   <div class="modal">
     <h3>🏷 登記競標</h3>
@@ -678,8 +646,8 @@ function setSelectedDate(d) {
   renderMemberGrid();
   renderSessionResults();
   renderCDSection();
-  if (currentTab===1) renderLog();
-  if (currentTab===2) renderCD();
+  
+  if (currentTab===1) renderCD();
 }
 
 function shiftDate(days) {
@@ -747,13 +715,8 @@ function gotoTab(n) {
   currentTab = n;
   document.querySelectorAll('.page').forEach((p,i) => p.classList.toggle('active', i===n));
   document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===n));
-  if (n===1) {
-    // Auto-return to today when viewing log
-    resetToToday();
-    renderLog();
-  }
-  if (n===2) renderCD();
-  if (n===3) renderSettings();
+  if (n===1) renderCD();
+  if (n===2) renderSettings();
 }
 
 // ===== PARSE =====
@@ -946,17 +909,17 @@ function confirmBid() {
   });
   closeModal(); save();
   renderLootGrid(); renderMemberGrid(); renderSessionResults();
-  if (currentTab===1) renderLog();
-  if (currentTab===2) renderCD();
+  
+  if (currentTab===1) renderCD();
 }
 
 function removeBid(id) {
   S.bids = S.bids.filter(b=>b.id!==id);
   save();
   renderLootGrid(); renderMemberGrid(); renderSessionResults();
-  if (currentTab===1) renderLog();
-  if (currentTab===2) renderCD();
-  if (currentTab===3) renderSettings();
+  
+  if (currentTab===1) renderCD();
+  if (currentTab===2) renderSettings();
 }
 
 // ===== SESSION RESULTS (page 0 bottom) =====
@@ -1209,13 +1172,20 @@ function copyEl(id, btn) {
   });
 }
 
-// ===== LOG (3-session summary) =====
+// ===== LOG (today's summary only) =====
 function renderLog() {
   const el = document.getElementById('logContent');
   if (!el) return;
-  if (!S.bids.length) {
-    el.innerHTML = '<div class="empty">尚無競標紀錄</div>'; return;
-  }
+
+  // Always show today's data only
+  const today = (() => {
+    const n = new Date();
+    const y = n.getFullYear();
+    const m = String(n.getMonth()+1).padStart(2,'0');
+    const d = String(n.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  })();
+  const todayLabel = today.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$2/$3');
 
   const useShort = document.querySelector('input[name="outFmt"]:checked')?.value !== 'full';
   const sessions = [
@@ -1224,11 +1194,14 @@ function renderLog() {
     {key:'king', label:'👑 聯盟王拍賣'},
   ];
 
-  let html = '';
+  let html = `<div style="font-size:.78rem;color:var(--text3);text-align:center;padding:4px 0 10px">📅 顯示今天 ${todayLabel} 的紀錄</div>`;
+  let hasAny = false;
 
   sessions.forEach(({key, label}) => {
-    const sesBids = S.bids.filter(b=>b.session===key);
+    // Only today's bids, exclude cdOnly
+    const sesBids = S.bids.filter(b=>b.session===key && b.date===today && !b.cdOnly);
     if (!sesBids.length) return;
+    hasAny = true;
 
     // Output text (for copy)
     const byItem = {};
@@ -1240,24 +1213,24 @@ function renderLog() {
       bids.sort((a,b)=>a.ts-b.ts);
       const names = bids.map((b,i)=>{ const m=getMember(b.memberId); return (m?getMLabel(m):'?')+(i+1); });
       return `${name}(${names.join('/')})`;
-    }).join(' ') || '（尚無競標紀錄）';
+    }).join(' ');
 
     const boxId = `log_${key}`;
     html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
       <div class="sec-label" style="margin:0">${label}</div>
-      <button class="btn btn-red btn-sm" style="font-size:.68rem" onclick="clearOneSesLog('${key}','${label}')">🗑 清除本場</button>
+      <button class="btn btn-red btn-sm" style="font-size:.68rem" onclick="clearOneSesLog('${key}','${label}','${today}')">🗑 清除本場</button>
     </div>
-      <div class="output-box" id="${boxId}">${resultText}</div>
-      <button class="copy-btn" onclick="copyEl('${boxId}',this)">📋 複製${label}結果</button>`;
+    <div class="output-box" id="${boxId}">${resultText}</div>
+    <button class="copy-btn" onclick="copyEl('${boxId}',this)">📋 複製${label}結果</button>`;
 
-    // Editable bid list with delete buttons
+    // Editable bid list
     html += `<div style="margin-bottom:12px">`;
     sesBids.sort((a,b)=>a.ts-b.ts).forEach(b => {
       const m = getMember(b.memberId);
       const itemName = b.itemShort||b.itemName||'?';
       const mName_ = m ? (useShort && m.shortName && m.shortName!==m.name ? m.shortName : m.name) : '?';
       html += `<div class="bid-item" style="font-size:.78rem">
-        <span style="flex:1"><strong>${itemName}</strong> ← ${mName_} <span style="color:var(--text3);font-size:.7rem">${b.date}</span></span>
+        <span style="flex:1"><strong>${itemName}</strong> ← ${mName_}</span>
         <button class="btn btn-gray btn-sm" style="margin-right:4px;font-size:.68rem" onclick="editBidModal('${b.id}')">✏️</button>
         <button class="del-btn" onclick="deleteBidConfirm('${b.id}')">✕</button>
       </div>`;
@@ -1265,41 +1238,27 @@ function renderLog() {
     html += `</div>`;
   });
 
-  // Remaining (based on current session+date)
-  if (S.items.length) {
-    const ses = viewSession || S.session || 'noon';
-    const date = selectedDate;
-    const remParts = S.items.map(item => {
-      const c = S.bids.filter(b=>b.itemId===item.id && b.session===ses && b.date===date).length;
-      const r = item.qty - c;
-      if (r<=0) return '';
-      const nums = Array.from({length:r},(_,i)=>c+i+1);
-      if (nums.length>4) return `${getLabel(item)}(${nums[0]}到${nums[nums.length-1]})`;
-      return `${getLabel(item)}(${nums.join('/')})`;
-    }).filter(Boolean);
-    const remText = remParts.length ? '還剩 '+remParts.join('。') : '所有物品已競標完畢 🎉';
-    html += `<div class="sec-label">📦 目前剩餘名額</div>
-      <div class="output-box" id="log_rem">${remText}</div>
-      <button class="copy-btn" onclick="copyEl('log_rem',this)">📋 複製剩餘名額</button>`;
+  if (!hasAny) {
+    html += `<div class="empty">今天 ${todayLabel} 尚無競標紀錄</div>`;
   }
 
-  // CD unlock
+  // CD unlock (all active, not just today)
   const cdText = buildCDUnlock();
   html += `<div class="sec-label">⏳ CD解禁日期</div>
     <div class="output-box" id="log_cd">${cdText}</div>
     <button class="copy-btn" onclick="copyEl('log_cd',this)">📋 複製CD名單</button>`;
 
-  el.innerHTML = html || '<div class="empty">尚無競標紀錄</div>';
+  el.innerHTML = html;
 }
 
-function clearOneSesLog(ses, label) {
-  const count = S.bids.filter(b=>b.session===ses && !b.cdOnly).length;
-  if (!count) { alert('此場次沒有競標紀錄'); return; }
-  if (!confirm(`確認清除${label}的所有競標紀錄？（共${count}筆）\nCD紀錄會保留。`)) return;
+function clearOneSesLog(ses, label, date) {
+  const count = S.bids.filter(b=>b.session===ses && b.date===date && !b.cdOnly).length;
+  if (!count) { alert('此場次今天沒有競標紀錄'); return; }
+  if (!confirm(`確認清除${label}今天的所有競標紀錄？（共${count}筆）\nCD紀錄會保留。`)) return;
   S.bids = S.bids.map(b => {
-    if (b.session===ses && b.hasCD) return {...b, cdOnly: true};
+    if (b.session===ses && b.date===date && b.hasCD) return {...b, cdOnly: true};
     return b;
-  }).filter(b => b.session!==ses || b.hasCD);
+  }).filter(b => !(b.session===ses && b.date===date && !b.hasCD));
   save(); renderLootGrid(); renderMemberGrid(); renderSessionResults(); renderCDSection();
   renderLog();
 }
@@ -1312,8 +1271,8 @@ function deleteBidConfirm(id) {
   if (!confirm(`確認刪除？\n物品：${itemName}\n成員：${m?.name||'?'}`)) return;
   S.bids = S.bids.filter(b=>b.id!==id);
   save(); renderLootGrid(); renderMemberGrid(); renderSessionResults(); renderCDSection();
-  if (currentTab===1) renderLog();
-  if (currentTab===2) renderCD();
+  
+  if (currentTab===1) renderCD();
 }
 
 // ===== CD =====
@@ -1660,8 +1619,8 @@ function confirmEditBid() {
   bid.date = document.getElementById('editBidDate').value;
   closeEditBidModal();
   save(); renderLootGrid(); renderMemberGrid(); renderSessionResults(); renderCDSection();
-  if (currentTab===1) renderLog();
-  if (currentTab===2) renderCD();
+  
+  if (currentTab===1) renderCD();
 }
 
 function deleteBidFromModal() {
@@ -1670,8 +1629,8 @@ function deleteBidFromModal() {
   S.bids = S.bids.filter(b=>b.id!==bidId);
   closeEditBidModal();
   save(); renderLootGrid(); renderMemberGrid(); renderSessionResults(); renderCDSection();
-  if (currentTab===1) renderLog();
-  if (currentTab===2) renderCD();
+  
+  if (currentTab===1) renderCD();
 }
 
 // ===== RENDER ALL =====
@@ -1698,11 +1657,9 @@ function renderAll() {
   if (notesEl && document.activeElement !== notesEl) notesEl.value = S.notes || '';
 
   renderLootGrid(); renderMemberGrid(); renderSessionResults(); renderCDSection();
-  if (currentTab===1) renderLog();
-  if (currentTab===2) renderCD();
-  if (currentTab===3) renderSettings();
+  if (currentTab===1) renderCD();
+  if (currentTab===2) renderSettings();
 }
 </script>
-
 </body>
 </html>
