@@ -1892,6 +1892,23 @@ function renderKingResults(items, date) {
     });
   });
   html += `</div></div>`;
+
+  // --- 剩餘名額 ---
+  const remParts = items.map(item => {
+    const takenSlots = kingBids.filter(b=>b.itemId===item.id).map(b=>b.itemSlot);
+    const remSlots = Array.from({length:item.qty},(_,i)=>i+1).filter(s=>!takenSlots.includes(s));
+    if (!remSlots.length) return '';
+    return `${item.shortName||item.name}（${remSlots.join('/')}）`;
+  }).filter(Boolean);
+
+  if (remParts.length) {
+    const remText = '還剩 ' + remParts.join('。') + '。';
+    html += `<div class="card"><div class="card-title">📦 剩餘名額</div>
+      <div class="output-box" id="kingRemCopy" style="font-size:.78rem">${remText}</div>
+      <button class="copy-btn" onclick="copyEl('kingRemCopy',this)">📋 複製剩餘名額</button>
+    </div>`;
+  }
+
   el.innerHTML = html;
 }
 
