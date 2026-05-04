@@ -321,7 +321,25 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
     <div class="settings-row">
       <label class="cb-row"><input type="checkbox" id="niCD" onchange="toggleNiCD()"> CD冷卻</label>
       <input type="number" id="niCDDays" value="3" min="1" max="30" style="width:60px;display:none;flex:none">
-      <span id="niCDHint" style="display:none;font-size:.72rem;color:var(--orange);flex:none">天</span>
+      <span id="niCDHint" style="display:none;font-size:.72rem;color:var(--orange);flex:none">天（專屬職業）</span>
+    </div>
+    <div id="niRoleRow" style="display:none">
+      <div class="settings-row">
+        <label class="settings-label">專屬職業</label>
+        <select id="niRole" style="flex:1" onchange="toggleNiRole()">
+          <option value="">無限制</option>
+          <option value="tank">🛡 坦克</option>
+          <option value="assassin">🗡 刺客</option>
+          <option value="mage">🔮 法師</option>
+          <option value="archer">🏹 弓箭手</option>
+          <option value="priest">✨ 牧師</option>
+        </select>
+      </div>
+      <div id="niOtherCDRow" style="display:none" class="settings-row">
+        <label class="settings-label" style="font-size:.72rem">其他職業CD</label>
+        <input type="number" id="niOtherCDDays" value="7" min="1" max="30" style="width:60px;flex:none">
+        <span style="font-size:.72rem;color:var(--text3);flex:none">天</span>
+      </div>
     </div>
     <button class="btn btn-gold btn-full" onclick="addItem()" style="margin-top:4px">新增至資料庫</button>
     <div style="margin-top:12px" id="itemManageList"></div>
@@ -345,6 +363,14 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
     </div>
     <div style="display:flex;gap:8px;margin-bottom:8px">
       <select id="nmGroup" style="flex:1"></select>
+      <select id="nmRole" style="flex:1">
+        <option value="">無職業</option>
+        <option value="tank">🛡 坦克</option>
+        <option value="assassin">🗡 刺客</option>
+        <option value="mage">🔮 法師</option>
+        <option value="archer">🏹 弓箭手</option>
+        <option value="priest">✨ 牧師</option>
+      </select>
       <button class="btn btn-purple btn-sm" onclick="addMember()">新增</button>
     </div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
@@ -561,8 +587,30 @@ function getMember(id) { return S.members.find(m => m.id === id); }
 function effectiveCDDays(bid) {
   const member = getMember(bid.memberId);
   const itemDays = bid.cdDays || 3;
+
+  // Find item definition for role-based CD
+  let itemDef = null;
+  for (const key of Object.keys(S.sessionItems)) {
+    itemDef = (S.sessionItems[key]||[]).find(i=>i.id===bid.itemId);
+    if (itemDef) break;
+  }
+  if (!itemDef) itemDef = S.itemDB.find(i=>i.id===bid.itemId||i.id===itemDef?.dbId);
+
+  // Check role-based CD: if item has a designated role and member has different role
+  const dbItem = S.itemDB.find(i=>i.id===itemDef?.dbId||i.name===itemDef?.name);
+  if (dbItem && dbItem.role && dbItem.otherCDDays && member && member.role) {
+    const effectiveDays = member.role === dbItem.role ? itemDays : dbItem.otherCDDays;
+    // Also apply group CD min
+    if (member.groupId) {
+      const grp = S.groups.find(g=>g.id===member.groupId);
+      if (grp) return Math.min(grp.cdDays, effectiveDays);
+    }
+    return effectiveDays;
+  }
+
+  // No role-based CD: use group CD min
   if (member && member.groupId) {
-    const grp = S.groups.find(g => g.id === member.groupId);
+    const grp = S.groups.find(g=>g.id===member.groupId);
     if (grp) return Math.min(grp.cdDays, itemDays);
   }
   return itemDays;
@@ -984,8 +1032,9 @@ function renderMemberGrid() {
   grid.innerHTML = filtered.map(m => {
     const bc = S.bids.filter(b=>b.memberId===m.id && b.session===ses && b.date===date && !b.cdOnly).length;
     const hc = S.bids.some(b=>b.memberId===m.id && b.hasCD && cdDaysLeft(b)>0);
+    const roleIcon = m.role==='tank'?'🛡':m.role==='assassin'?'🗡':'';
     return `<div class="member-chip ${bc>0?'has-bid':''} ${hc?'has-cd':''}" onclick="memberClick('${m.id}')">
-      ${bc>0?`<span class="bid-count">${bc}</span>`:''}${mName(m,'display')}
+      ${bc>0?`<span class="bid-count">${bc}</span>`:''}${roleIcon?`<span style="font-size:.65rem">${roleIcon}</span>`:''}${mName(m,'display')}
     </div>`;
   }).join('');
 }
@@ -1438,9 +1487,16 @@ function renderCD() {
 
 // ===== SETTINGS =====
 function toggleNiCD() {
-  const c=document.getElementById('niCD').checked;
-  document.getElementById('niCDDays').style.display=c?'':'none';
-  document.getElementById('niCDHint').style.display=c?'':'none';
+  const c = document.getElementById('niCD').checked;
+  document.getElementById('niCDDays').style.display = c ? '' : 'none';
+  document.getElementById('niCDHint').style.display = c ? '' : 'none';
+  document.getElementById('niRoleRow').style.display = c ? '' : 'none';
+  if (!c) document.getElementById('niOtherCDRow').style.display = 'none';
+  else toggleNiRole();
+}
+function toggleNiRole() {
+  const role = document.getElementById('niRole').value;
+  document.getElementById('niOtherCDRow').style.display = role ? '' : 'none';
 }
 function toggleEiCD() {
   const c=document.getElementById('eiCD').checked;
@@ -1449,16 +1505,20 @@ function toggleEiCD() {
 }
 
 function addItem() {
-  const name=document.getElementById('niName').value.trim();
+  const name = document.getElementById('niName').value.trim();
   if (!name) { alert('請輸入名稱'); return; }
   if (S.itemDB.find(i=>i.name===name)) { alert('名稱已存在'); return; }
-  const short=document.getElementById('niShort').value.trim();
-  const tier=document.getElementById('niTier').value;
-  const hasCD=document.getElementById('niCD').checked;
-  const cdDays=hasCD?(parseInt(document.getElementById('niCDDays').value)||3):3;
-  S.itemDB.push({id:uid(), name, shortName:short||name, tier, perMemberLimit:tier==='purple'?1:2, hasCD, cdDays});
+  const short = document.getElementById('niShort').value.trim();
+  const tier = document.getElementById('niTier').value;
+  const hasCD = document.getElementById('niCD').checked;
+  const cdDays = hasCD ? (parseInt(document.getElementById('niCDDays').value)||3) : 3;
+  const role = hasCD ? (document.getElementById('niRole').value||'') : '';
+  const otherCDDays = (hasCD && role) ? (parseInt(document.getElementById('niOtherCDDays').value)||7) : null;
+  S.itemDB.push({id:uid(), name, shortName:short||name, tier,
+    perMemberLimit:tier==='purple'?1:2, hasCD, cdDays, role, otherCDDays});
   document.getElementById('niName').value=''; document.getElementById('niShort').value='';
-  document.getElementById('niCD').checked=false; toggleNiCD();
+  document.getElementById('niCD').checked=false; document.getElementById('niRole').value='';
+  toggleNiCD();
   save(); renderSettings();
 }
 
@@ -1554,10 +1614,20 @@ function addMember() {
   if (S.members.find(m=>m.name===name)) { alert('名稱已存在'); return; }
   const short=document.getElementById('nmShort').value.trim();
   const groupId=document.getElementById('nmGroup').value||null;
-  S.members.push({id:uid(),name,shortName:short||name,groupId});
-  document.getElementById('nmName').value=''; document.getElementById('nmShort').value='';
+  const role=document.getElementById('nmRole').value||'';
+  S.members.push({id:uid(),name,shortName:short||name,groupId,role});
+  document.getElementById('nmName').value='';
+  document.getElementById('nmShort').value='';
+  document.getElementById('nmRole').value='';
   save(); renderSettings(); renderMemberGrid();
 }
+function updateMemberRole(id, role) {
+  const m = getMember(id);
+  if (!m) return;
+  m.role = role || '';
+  save(); renderMemberManageList(); renderMemberGrid();
+}
+
 function removeMember(id) {
   S.members=S.members.filter(m=>m.id!==id);
   save(); renderSettings(); renderMemberGrid();
@@ -1606,32 +1676,46 @@ function renderMemberManageList() {
   else if (filter!=='all') filtered=S.members.filter(m=>m.groupId===filter);
   const cEl=document.getElementById('memberFilterCount');
   if (cEl) cEl.textContent=filter==='all'?'':`${filtered.length}人`;
+  const ROLES = {tank:'🛡 坦克', assassin:'🗡 刺客', mage:'🔮 法師', archer:'🏹 弓箭手', priest:'✨ 牧師'};
+  const roleLabel = r => ROLES[r] || '';
+  const roleOptions = ['','tank','assassin','mage','archer','priest'].map(v=>
+    `<option value="${v}" ${m.role===v?'selected':''}>${v?ROLES[v]:'無職業'}</option>`
+  ).join('');
   document.getElementById('memberManageList').innerHTML=filtered.length?filtered.map(m=>{
     const grp=m.groupId?S.groups.find(g=>g.id===m.groupId):null;
     const grpLabel=grp?`<span class="pill pill-purple" style="font-size:.6rem">${grp.name}</span>`:`<span style="font-size:.65rem;color:var(--text3)">無群組</span>`;
+    const rl=m.role?`<span class="pill" style="font-size:.6rem;background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-bd)">${ROLES[m.role]}</span>`:'';
     const hasShort=m.shortName&&m.shortName!==m.name;
+    const rOpts = ['','tank','assassin','mage','archer','priest'].map(v=>
+      `<option value="${v}" ${m.role===v?'selected':''}>${v?ROLES[v]:'無職業'}</option>`
+    ).join('');
     return `<div class="manage-row" style="flex-wrap:wrap;gap:4px">
       <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:.82rem">${m.name}&nbsp;${grpLabel}</div>
+        <div style="font-weight:700;font-size:.82rem">${m.name}&nbsp;${grpLabel}&nbsp;${rl}</div>
         ${hasShort?`<div style="font-size:.68rem;color:var(--text3)">簡稱：${m.shortName}</div>`:''}
       </div>
-      <button class="btn btn-gray btn-sm" style="margin-right:4px" onclick="openRenameModal('${m.id}')">改名</button>
-      <button class="btn btn-gray btn-sm" style="margin-right:4px" onclick="editMemberGroup('${m.id}')">群組</button>
+      <select onchange="updateMemberRole('${m.id}',this.value)" style="font-size:.72rem;padding:4px 6px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)">
+        ${rOpts}
+      </select>
+      <button class="btn btn-gray btn-sm" onclick="openRenameModal('${m.id}')">改名</button>
+      <button class="btn btn-gray btn-sm" onclick="editMemberGroup('${m.id}')">群組</button>
       <button class="btn btn-red btn-sm" onclick="removeMember('${m.id}')">移除</button>
     </div>`;
   }).join(''):'<div class="empty" style="padding:12px 0">無符合成員</div>';
 }
 
 function renderSettings() {
+  const ROLES = {tank:'🛡 坦克', assassin:'🗡 刺客', mage:'🔮 法師', archer:'🏹 弓箭手', priest:'✨ 牧師'};
   // Items
   const il=document.getElementById('itemManageList');
   il.innerHTML=S.itemDB.length?S.itemDB.map(item=>{
     const tierLabel=item.tier==='purple'?'<span class="pill pill-purple" style="font-size:.6rem">🟣 紫</span>':'<span class="pill pill-blue" style="font-size:.6rem">🔵 藍</span>';
-    const cdLabel=item.hasCD?` <span class="pill pill-cd" style="font-size:.6rem">CD ${item.cdDays}天</span>`:'';
+    const cdLabel=item.hasCD?` <span class="pill pill-cd" style="font-size:.6rem">CD ${item.cdDays}天${item.role?'('+ROLES[item.role]+')':''}</span>`:'';
+    const otherCD = item.hasCD && item.role && item.otherCDDays ? ` <span class="pill" style="font-size:.6rem;background:#fff3e0;color:#e65100;border:1px solid #ffcc02">其他職業${item.otherCDDays}天</span>` : '';
     const hasShort=item.shortName&&item.shortName!==item.name;
     return `<div class="manage-row" style="flex-wrap:wrap;gap:4px;align-items:flex-start">
       <div style="flex:1;min-width:100px">
-        <div style="font-weight:700;font-size:.82rem">${item.name} ${tierLabel}${cdLabel}</div>
+        <div style="font-weight:700;font-size:.82rem">${item.name} ${tierLabel}${cdLabel}${otherCD}</div>
         ${hasShort?`<div style="font-size:.68rem;color:var(--text3)">簡稱：${item.shortName}</div>`:''}
       </div>
       <button class="btn btn-gray btn-sm" onclick="openEditItemModal('${item.id}')">編輯</button>
