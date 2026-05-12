@@ -541,7 +541,83 @@ const STATIC_ALIASES = {
 const CD_DEFAULTS = new Set(['黑龍','紅三']);
 const PURPLE_DEFAULTS = new Set(['黑龍','紅三']);
 
-// ===== STATE =====
+// ===== PRESET MEMBERS =====
+const PRESET_MEMBERS = [
+  {id:"m000",name:"WAWA牧",shortName:"WAWA",groupId:null,role:""},
+  {id:"m001",name:"醉愛緬因貓",shortName:"醉愛",groupId:null,role:""},
+  {id:"m002",name:"LewisM",shortName:"Lewis",groupId:null,role:""},
+  {id:"m003",name:"哈利波癢",shortName:"哈利",groupId:null,role:""},
+  {id:"m004",name:"紅姐",shortName:"紅姐",groupId:null,role:""},
+  {id:"m005",name:"天氣晴",shortName:"天氣",groupId:null,role:""},
+  {id:"m006",name:"哇係恁老牧",shortName:"哇係",groupId:null,role:""},
+  {id:"m007",name:"鄧不利多茄",shortName:"鄧不",groupId:null,role:""},
+  {id:"m008",name:"夢姨超人",shortName:"夢姨",groupId:null,role:""},
+  {id:"m009",name:"～澤～",shortName:"澤",groupId:null,role:""},
+  {id:"m010",name:"山粉圓小沃",shortName:"山粉",groupId:null,role:""},
+  {id:"m011",name:"「9527」",shortName:"9527",groupId:null,role:""},
+  {id:"m012",name:"Mo超人",shortName:"Mo",groupId:null,role:""},
+  {id:"m013",name:"煉吻",shortName:"煉吻",groupId:null,role:""},
+  {id:"m014",name:"因果",shortName:"因果",groupId:null,role:""},
+  {id:"m015",name:"只剩一掘祖彈",shortName:"只剩",groupId:null,role:""},
+  {id:"m016",name:"✨小力點✨",shortName:"小力",groupId:null,role:""},
+  {id:"m017",name:"武安侯BEN",shortName:"武安",groupId:null,role:""},
+  {id:"m018",name:"牛排好大塊",shortName:"牛排",groupId:null,role:""},
+  {id:"m019",name:"✨小歪歪✨",shortName:"小歪",groupId:null,role:""},
+  {id:"m020",name:"復仇的龍魔",shortName:"復仇",groupId:null,role:""},
+  {id:"m021",name:"語言系",shortName:"語言",groupId:null,role:""},
+  {id:"m022",name:"迪諾",shortName:"迪諾",groupId:null,role:""},
+  {id:"m023",name:"魔獸老法師",shortName:"魔獸",groupId:null,role:""},
+  {id:"m024",name:"天真",shortName:"天真",groupId:null,role:""},
+  {id:"m025",name:"noodle",shortName:"noodle",groupId:null,role:""},
+  {id:"m026",name:"雕那馬",shortName:"雕那",groupId:null,role:""},
+  {id:"m027",name:"洲際飛彈",shortName:"洲際",groupId:null,role:""},
+  {id:"m028",name:"芭樂綠茶",shortName:"芭樂",groupId:null,role:""},
+  {id:"m029",name:"中獎發票",shortName:"中獎",groupId:null,role:""},
+  {id:"m030",name:"左手迷思",shortName:"左手",groupId:null,role:""},
+  {id:"m031",name:"草莓大福",shortName:"草莓",groupId:null,role:""},
+  {id:"m032",name:"民少",shortName:"民少",groupId:null,role:""},
+  {id:"m033",name:"最強巫師",shortName:"最強",groupId:null,role:""},
+  {id:"m034",name:"希茵娜",shortName:"希茵",groupId:null,role:""},
+  {id:"m035",name:"✨蛋糕喵✨",shortName:"蛋糕",groupId:null,role:""},
+  {id:"m036",name:"Food超人",shortName:"Food",groupId:null,role:""},
+  {id:"m037",name:"預兆之侍衛",shortName:"預兆",groupId:null,role:""},
+  {id:"m038",name:"各位九隻鳥",shortName:"各位",groupId:null,role:""},
+  {id:"m039",name:"花田三路",shortName:"花田",groupId:null,role:""},
+  {id:"m040",name:"光頭嫩補超人",shortName:"光頭",groupId:null,role:""},
+  {id:"m041",name:"加藤段藏",shortName:"加藤",groupId:null,role:""},
+  {id:"m042",name:"KAI桑",shortName:"KAI",groupId:null,role:""},
+  {id:"m043",name:"小太陽、",shortName:"小太",groupId:null,role:""},
+  {id:"m044",name:"God、羽",shortName:"羽",groupId:null,role:""},
+  {id:"m045",name:"弘暉",shortName:"弘暉",groupId:null,role:""},
+  {id:"m046",name:"來個大四喜",shortName:"四喜",groupId:null,role:""},
+  {id:"m047",name:"只能打蚊的大炮",shortName:"大炮",groupId:null,role:""},
+  {id:"m048",name:"來個大三元",shortName:"三元",groupId:null,role:""},
+  {id:"m049",name:"冰雪心兒",shortName:"冰雪",groupId:null,role:""},
+  {id:"m050",name:"Dark Lord",shortName:"Dark",groupId:null,role:""},
+  {id:"m051",name:"SS超人",shortName:"SS",groupId:null,role:""},
+  {id:"m052",name:"森上梅錢",shortName:"梅錢",groupId:null,role:""},
+  {id:"m053",name:"阿不理波波",shortName:"阿不",groupId:null,role:""},
+  {id:"m054",name:"含沃德藍教頭",shortName:"含沃",groupId:null,role:""},
+  {id:"m055",name:"黑石蒼藍星",shortName:"黑石",groupId:null,role:""},
+  {id:"m056",name:"天兵娃娃",shortName:"天兵",groupId:null,role:""},
+  {id:"m057",name:"休閒",shortName:"休閒",groupId:null,role:""},
+  {id:"m058",name:"Ruru",shortName:"Ruru",groupId:null,role:""},
+  {id:"m059",name:"無課一族",shortName:"無課",groupId:null,role:""},
+  {id:"m060",name:"石皮盾",shortName:"石皮",groupId:null,role:""},
+  {id:"m061",name:"✨小渣男✨",shortName:"小渣",groupId:null,role:""},
+  {id:"m062",name:"义雲陌义",shortName:"义雲",groupId:null,role:""},
+  {id:"m063",name:"阿拉姆",shortName:"阿拉",groupId:null,role:""},
+  {id:"m064",name:"天啟",shortName:"天啟",groupId:null,role:""},
+  {id:"m065",name:"PuT哥",shortName:"PuT",groupId:null,role:""},
+  {id:"m066",name:"北門彭于晏",shortName:"北門",groupId:null,role:""},
+  {id:"m067",name:"高金深",shortName:"高金",groupId:null,role:""},
+  {id:"m068",name:"屁屁超人",shortName:"屁屁",groupId:null,role:""},
+  {id:"m069",name:"淼無雙",shortName:"淼無",groupId:null,role:""},
+  {id:"m070",name:"花無缺",shortName:"花無",groupId:null,role:""},
+  {id:"m071",name:"梅川內酷",shortName:"梅川",groupId:null,role:""},
+  {id:"m072",name:"夯小裕",shortName:"夯小",groupId:null,role:""},
+  {id:"m073",name:"褲子裡有松鼠",shortName:"褲子",groupId:null,role:""},
+];
 let S = {
   itemDB: [],
   items: [],          // current session+date items (synced by syncSessionItems)
@@ -805,6 +881,10 @@ function resetToToday() {
 document.getElementById('modalDate').value = selectedDate;
 document.getElementById('sessionDateDisplay').textContent = formatDateDisplay(selectedDate);
 loadLocal();
+// Load preset members if none exist yet
+if (S.members.length === 0) {
+  S.members = PRESET_MEMBERS.map(m => ({...m}));
+}
 renderAll();
 initFirebase();
 
