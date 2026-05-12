@@ -357,6 +357,17 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 
   <div class="card">
     <div class="card-title">👥 成員管理 <span id="memberCountBadge" style="color:var(--text3);font-weight:400;font-size:.72rem"></span></div>
+
+    <!-- 匯入文字檔 -->
+    <div style="background:var(--bg);border:1.5px dashed var(--border);border-radius:10px;padding:12px;margin-bottom:12px">
+      <div style="font-size:.75rem;color:var(--text2);margin-bottom:8px;font-weight:600">📂 從文字檔匯入成員名單</div>
+      <div style="font-size:.7rem;color:var(--text3);margin-bottom:8px;line-height:1.6">每行一個名字，超過兩個字自動縮簡稱。<br>匯入後會<strong>取代</strong>現有名單（群組、職業設定保留相同名字的）</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="file" id="memberImportFile" accept=".txt" style="flex:1;font-size:.75rem" onchange="importMembersFromFile(this)">
+        <button class="btn btn-gold btn-sm" onclick="document.getElementById('memberImportFile').click()">選擇檔案</button>
+      </div>
+      <div id="importResult" style="font-size:.72rem;color:var(--green);margin-top:6px;display:none"></div>
+    </div>
     <div style="display:flex;gap:8px;margin-bottom:6px">
       <input type="text" id="nmName" placeholder="成員名稱（全名）" style="flex:2" onkeydown="if(event.key==='Enter')addMember()">
       <input type="text" id="nmShort" placeholder="簡稱（選填）" style="flex:1">
@@ -765,6 +776,8 @@ function mergeRemote(data) {
   if (data.bids !== undefined) S.bids = data.bids || [];
   if (data.session !== undefined) S.session = data.session;
   if (data.members !== undefined) S.members = data.members || [];
+  // If still no members after merge, load presets
+  if (S.members.length === 0) S.members = PRESET_MEMBERS.map(m => ({...m}));
   if (data.groups !== undefined) S.groups = data.groups || [];
   if (data.notes !== undefined) S.notes = data.notes || '';
   syncSessionItems();
@@ -1688,6 +1701,46 @@ function updateGroupSelects() {
   }
 }
 
+// ===== IMPORT MEMBERS FROM FILE =====
+function autoShortName(name) {
+  const clean = name.replace(/[✨、「」～\s]/g, '').trim();
+  if (clean.length <= 2) return clean;
+  if (/^[A-Za-z0-9]+$/.test(clean)) return clean.length <= 5 ? clean : clean.slice(0, 4);
+  return clean.slice(0, 2);
+}
+
+function importMembersFromFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+    if (!lines.length) { alert('文字檔是空的'); return; }
+
+    // Preserve existing settings for matching names
+    const oldMap = {};
+    S.members.forEach(m => { oldMap[m.name] = m; });
+
+    const newMembers = lines.map(name => {
+      if (oldMap[name]) return oldMap[name]; // keep existing settings
+      return { id:uid(), name, shortName:autoShortName(name), groupId:null, role:'' };
+    });
+
+    const added = newMembers.filter(m=>!oldMap[m.name]).length;
+    const kept = newMembers.filter(m=>!!oldMap[m.name]).length;
+    const removed = S.members.length - kept;
+
+    S.members = newMembers;
+    save(); renderAll();
+
+    const resultEl = document.getElementById('importResult');
+    resultEl.style.display = '';
+    resultEl.textContent = `✅ 匯入完成：共 ${newMembers.length} 人（新增 ${added}、保留 ${kept}、移除 ${removed}）`;
+    input.value = '';
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
 function addMember() {
   const name=document.getElementById('nmName').value.trim();
   if (!name) return;
@@ -1843,6 +1896,8 @@ function resetAll() {
   if (!confirm('⚠️ 完全重置所有資料？')) return;
   S={itemDB:[],items:[],sessionItems:{},pasteTexts:{},
     members:[],bids:[],session:null,groups:[],notes:''};
+  // Load preset members immediately
+  S.members = PRESET_MEMBERS.map(m => ({...m}));
   selectedItemId=null; viewSession=null;
   document.getElementById('lootSection').style.display='none';
   document.getElementById('pasteInput').value='';
