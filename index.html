@@ -1678,9 +1678,6 @@ function renderMemberManageList() {
   if (cEl) cEl.textContent=filter==='all'?'':`${filtered.length}人`;
   const ROLES = {tank:'🛡 坦克', assassin:'🗡 刺客', mage:'🔮 法師', archer:'🏹 弓箭手', priest:'✨ 牧師'};
   const roleLabel = r => ROLES[r] || '';
-  const roleOptions = ['','tank','assassin','mage','archer','priest'].map(v=>
-    `<option value="${v}" ${m.role===v?'selected':''}>${v?ROLES[v]:'無職業'}</option>`
-  ).join('');
   document.getElementById('memberManageList').innerHTML=filtered.length?filtered.map(m=>{
     const grp=m.groupId?S.groups.find(g=>g.id===m.groupId):null;
     const grpLabel=grp?`<span class="pill pill-purple" style="font-size:.6rem">${grp.name}</span>`:`<span style="font-size:.65rem;color:var(--text3)">無群組</span>`;
