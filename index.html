@@ -966,9 +966,55 @@ function resolveAlias(raw) {
 function parseLoot() {
   const raw = document.getElementById('pasteInput').value.trim();
   if (!raw) { alert('請先貼上戰利品統計文字'); return; }
+
+  // Detect 本場開放 section and extract locked slots per item
+  // Format: 本場開放（多頭蛇2）（死三56）（死二9.10.11）
+  // 多頭蛇2 = slot 2 locked; 死三56 = slots 5,6 locked; 死二9.10.11 = slots 9,10,11 locked
+  const lockedSlots = {}; // {itemName: Set of locked slot numbers}
+  const openLineMatch = raw.match(/本場開放[^\n]*/);
+  if (openLineMatch) {
+    const openLine = openLineMatch[0];
+    const segRegex = /[（(]([^）)]+)[）)]/g;
+    let seg;
+    while ((seg = segRegex.exec(openLine)) !== null) {
+      const inner = seg[1].trim();
+      // Split name and slot numbers: e.g. "死三56" → name="死三", slots=[5,6]
+      const nameMatch = inner.match(/^([^\d]+)([\d.]+)?$/);
+      if (!nameMatch) continue;
+      const rawName = nameMatch[1].trim();
+      const numStr = nameMatch[2] || '';
+      const canonical = resolveAlias(rawName);
+      // Parse slot numbers: "56" → [5,6], "9.10.11" → [9,10,11]
+      let slots = [];
+      if (numStr.includes('.')) {
+        slots = numStr.split('.').map(Number).filter(Boolean);
+      } else {
+        // Each digit is a slot: "56" → [5,6], "9" → [9]
+        if (numStr.length <= 2) {
+          slots = numStr.split('').map(Number).filter(Boolean);
+        } else {
+          slots = numStr.split('.').map(Number).filter(Boolean);
+        }
+      }
+      if (!lockedSlots[canonical]) lockedSlots[canonical] = new Set();
+      if (!lockedSlots[rawName]) lockedSlots[rawName] = new Set();
+      slots.forEach(s => {
+        lockedSlots[canonical].add(s);
+        lockedSlots[rawName].add(s);
+      });
+      // If no slot numbers specified, lock the whole item
+      if (slots.length === 0) {
+        lockedSlots[canonical] = 'all';
+        lockedSlots[rawName] = 'all';
+      }
+    }
+  }
+
+  // Parse main items (exclude 本場開放 line)
+  const mainRaw = raw.replace(/本場開放.*$/gm, '').trim();
   const regex = /([^\d\s。．，,、;\n：:＝=]+?)\s*[：:＝=]?\s*(\d+)/g;
   const found = []; let m;
-  while ((m = regex.exec(raw)) !== null) {
+  while ((m = regex.exec(mainRaw)) !== null) {
     const rn = m[1].trim().replace(/[。．，,、;]/g,'');
     const qty = parseInt(m[2]);
     if (!rn || !qty || qty > 99) continue;
@@ -977,20 +1023,32 @@ function parseLoot() {
     if (ex) ex.qty = qty; else found.push({name:canonical, qty, raw:rn});
   }
   if (!found.length) { alert('無法解析，請確認格式如：黑龍 3。紅三 1。'); return; }
+
   found.forEach(f => {
+    const locked = lockedSlots[f.name] || lockedSlots[f.raw] || null;
+    const isOpen = locked === 'all'; // whole item locked
+    const lockedSlotsSet = locked !== 'all' ? locked : null;
     const dbEntry = S.itemDB.find(i => i.name===f.name || i.shortName===f.name);
     const exItem = S.items.find(i => i.dbId===(dbEntry?.id) || i.name===f.name);
-    if (exItem) { exItem.qty = f.qty; }
-    else if (dbEntry) {
+    const itemData = {
+      isOpen,
+      lockedSlots: lockedSlotsSet ? [...lockedSlotsSet] : []
+    };
+    if (exItem) {
+      exItem.qty = f.qty;
+      Object.assign(exItem, itemData);
+    } else if (dbEntry) {
       S.items.push({id:uid(), dbId:dbEntry.id, name:dbEntry.name, shortName:dbEntry.shortName||dbEntry.name,
-        tier:dbEntry.tier, perMemberLimit:dbEntry.perMemberLimit, hasCD:dbEntry.hasCD, cdDays:dbEntry.cdDays, qty:f.qty});
+        tier:dbEntry.tier, perMemberLimit:dbEntry.perMemberLimit, hasCD:dbEntry.hasCD, cdDays:dbEntry.cdDays,
+        qty:f.qty, ...itemData});
     } else {
       const isPurple = PURPLE_DEFAULTS.has(f.name);
       S.items.push({id:uid(), dbId:null, name:f.name, shortName:f.raw||f.name,
         tier:isPurple?'purple':'blue', perMemberLimit:isPurple?1:2,
-        hasCD:CD_DEFAULTS.has(f.name), cdDays:3, qty:f.qty});
+        hasCD:CD_DEFAULTS.has(f.name), cdDays:3, qty:f.qty, ...itemData});
     }
   });
+
   const ses = viewSession || S.session || 'noon';
   const date = selectedDate;
   const key = getDateSesKey(date, ses);
@@ -1035,6 +1093,17 @@ function renderLootGrid() {
     const tier = item.tier||'blue';
     const dot = tier==='purple'?'🟣':'🔵';
     const limit = item.perMemberLimit||(tier==='purple'?1:2);
+
+    // 自由標物品：鎖定不可點選
+    if (item.isOpen) {
+      return `<div class="loot-card" style="opacity:.65;cursor:not-allowed;border:1.5px dashed var(--border)">
+        <div class="loot-name" style="color:var(--text3)">🔓 ${item.name}</div>
+        <div class="loot-meta">
+          <span class="pill" style="background:#e8f5e9;color:#388e3c;border:1px solid #c8e6c9;font-size:.6rem">自由標</span>
+          <span class="pill pill-remain">${rem}/${item.qty}</span>
+        </div>
+      </div>`;
+    }
     return `<div class="loot-card ${sel?'selected':''} ${full?'full':''} ${item.hasCD?'cd-item':''} ${tier==='purple'?'purple-item':''}"
       onclick="selectLoot('${item.id}')">
       <div class="loot-name">${dot} ${item.name}</div>
@@ -1049,6 +1118,8 @@ function renderLootGrid() {
 }
 
 function selectLoot(id) {
+  const item = S.items.find(i=>i.id===id);
+  if (item?.isOpen) return; // 自由標物品不可點選
   selectedItemId = selectedItemId===id ? null : id;
   selectedSlots = new Set();
   renderLootGrid(); renderMemberGrid();
@@ -1071,6 +1142,15 @@ function renderSlotGrid() {
     const bidderName = slotBid ? (()=>{const m=getMember(slotBid.memberId); return m?mName(m,'short'):'?';})() : '';
     const sel = selectedSlots.has(slot);
     const taken = !!slotBid;
+    const locked = item.lockedSlots && item.lockedSlots.includes(slot);
+    if (locked) {
+      return `<div style="min-width:68px;flex:1;padding:9px 6px;
+        background:#f5f5f5;border:2px solid #e0e0e0;
+        border-radius:10px;text-align:center;cursor:not-allowed;opacity:.5">
+        <div style="font-weight:900;font-size:.9rem;color:#999">#${slot}</div>
+        <div style="font-size:.62rem;color:#bbb;margin-top:2px">🔒</div>
+      </div>`;
+    }
     return `<div onclick="toggleSlot(${slot})" style="min-width:68px;flex:1;padding:9px 6px;
       background:${sel?'var(--gold-bg)':taken?'var(--red-bg)':'var(--card)'};
       border:2px solid ${sel?'var(--gold-bd)':taken?'var(--red-bd)':'var(--border)'};
@@ -1084,6 +1164,8 @@ function renderSlotGrid() {
 }
 
 function toggleSlot(slot) {
+  const item = S.items.find(i=>i.id===selectedItemId);
+  if (item?.lockedSlots?.includes(slot)) return; // 鎖定件號不可選
   if (selectedSlots.has(slot)) selectedSlots.delete(slot);
   else selectedSlots.add(slot);
   renderSlotGrid();
@@ -1315,42 +1397,101 @@ function renderSessionResults() {
   if (sesBids.length) {
     const byItemCopy = {};
     sesBids.forEach(b => {
-      if (!byItemCopy[b.itemId]) byItemCopy[b.itemId] = {name: b.itemShort||b.itemName||'?', bids:[]};
+      if (!byItemCopy[b.itemId]) byItemCopy[b.itemId] = {name: b.itemShort||b.itemName||'?', item: S.items.find(i=>i.id===b.itemId), bids:[]};
       byItemCopy[b.itemId].bids.push(b);
     });
-    const sesResultText = Object.values(byItemCopy).map(({name, bids}) => {
+
+    // Helper: build one item's output text
+    function buildItemText({name, item, bids}) {
       bids.sort((a,b)=>a.ts-b.ts);
       const hasSlots = bids.some(b=>b.itemSlot);
-      let parts;
+      const lockedSlots = item?.lockedSlots || [];
       if (hasSlots) {
         const byMem = {};
         bids.forEach(b=>{ if(!byMem[b.memberId]) byMem[b.memberId]={m:getMember(b.memberId),slots:[]}; byMem[b.memberId].slots.push(b.itemSlot); });
-        parts = Object.values(byMem).map(({m,slots})=>`${m?mName(m,'short'):'?'}${slots.sort((a,b)=>a-b).join('')}`).join('/');
+        // Add locked slots as 自由標
+        if (lockedSlots.length) {
+          byMem['__open__'] = {m:null, slots:lockedSlots};
+        }
+        const parts = Object.values(byMem).map(({m,slots})=>{
+          const n = m ? mName(m,'short') : '自由標';
+          return `${n}${slots.sort((a,b)=>a-b).join('.')}`;
+        });
+        return `${name}（${parts.join('/')}）`;
       } else {
-        parts = bids.map((b,i)=>{ const m=getMember(b.memberId); return (m?mName(m,'short'):'?')+(i+1); }).join('/');
+        const parts = bids.map((b,i)=>{ const m=getMember(b.memberId); return (m?mName(m,'short'):'?')+(i+1); }).join('/');
+        return `${name}（${parts}）`;
       }
-      return `${name}(${parts})`;
-    }).join(' ');
-    html += `<div class="output-box" id="ses_result_copy" style="font-size:.78rem;margin-bottom:4px">${sesResultText}</div>
+    }
+
+    // Split: large items (qty>=6) go separate lines, others join with 。
+    const LARGE_QTY = 6;
+    const smallItems = [], largeItems = [];
+    Object.values(byItemCopy).forEach(entry => {
+      if ((entry.item?.qty||0) >= LARGE_QTY) largeItems.push(entry);
+      else smallItems.push(entry);
+    });
+
+    let resultText = '';
+    if (smallItems.length) resultText += smallItems.map(buildItemText).join('。') + '。';
+    if (largeItems.length) resultText += '\n' + largeItems.map(buildItemText).join('。\n');
+
+    html += `<div class="output-box" id="ses_result_copy" style="font-size:.78rem;margin-bottom:4px;white-space:pre-wrap">${resultText.trim()}</div>
       <button class="copy-btn" style="margin-bottom:10px" onclick="copyEl('ses_result_copy',this)">📋 複製本場結果</button>`;
   }
+
+  // --- Remaining ---
   if (S.items.length) {
-    const remParts = S.items.map(item => {
-      if (item.hasCD || item.qty<=1) {
+    const LARGE_QTY = 6;
+    const remSmall = [], remLarge = [];
+
+    S.items.forEach(item => {
+      const lockedSlots = item.lockedSlots || [];
+      const allSlots = Array.from({length:item.qty},(_,i)=>i+1);
+
+      if (item.isOpen) return; // whole item open, skip
+
+      if (item.hasCD || item.qty <= 1) {
+        // CD or single: count by bids
         const claimed = sesBids.filter(b=>b.itemId===item.id).length;
         const rem = item.qty - claimed;
-        if (rem<=0) return '';
+        if (rem <= 0) return;
         const nums = Array.from({length:rem},(_,i)=>claimed+i+1);
-        return `${iName(item,'short')}(${nums.length>4?nums[0]+'到'+nums[nums.length-1]:nums.join('/')})`;
+        const text = nums.length > 4 ? `${iName(item,'short')}${nums[0]}到${nums[nums.length-1]}` : `${iName(item,'short')}${nums.join('.')}`;
+        if (item.qty >= LARGE_QTY) remLarge.push(text);
+        else remSmall.push(text);
       } else {
+        // Slot-based: find unclaimed non-locked slots
         const takenSlots = sesBids.filter(b=>b.itemId===item.id&&b.itemSlot).map(b=>b.itemSlot);
-        const remSlots = Array.from({length:item.qty},(_,i)=>i+1).filter(s=>!takenSlots.includes(s));
-        if (!remSlots.length) return '';
-        return `${iName(item,'short')}(${remSlots.join('/')})`;
+        const freeSlots = allSlots.filter(s=>!takenSlots.includes(s)&&!lockedSlots.includes(s));
+        const openRem = lockedSlots.filter(s=>!takenSlots.includes(s)); // locked but still available
+
+        const parts = [];
+        if (freeSlots.length) {
+          parts.push(freeSlots.length > 4
+            ? `${freeSlots[0]}到${freeSlots[freeSlots.length-1]}`
+            : freeSlots.join('.'));
+        }
+        if (openRem.length) parts.push(`自由標${openRem.join('.')}`);
+        if (!parts.length) return;
+
+        const text = `${iName(item,'short')}（${parts.join('/')}）`;
+        if (item.qty >= LARGE_QTY) remLarge.push(text);
+        else remSmall.push(text);
       }
-    }).filter(Boolean);
+    });
+
+    let remText = '';
+    if (remSmall.length || remLarge.length) {
+      remText = '還剩 ';
+      if (remSmall.length) remText += remSmall.join('。') + '。';
+      if (remLarge.length) remText += '\n' + remLarge.join('。\n');
+    } else {
+      remText = '所有物品已競標完畢 🎉';
+    }
+
     html += `<div class="card"><div class="card-title">📦 剩餘名額</div>
-      <div class="output-box" id="remBox0">${remParts.length?'還剩 '+remParts.join('。'):'所有物品已競標完畢 🎉'}</div>
+      <div class="output-box" id="remBox0" style="white-space:pre-wrap">${remText.trim()}</div>
       <button class="copy-btn" onclick="copyEl('remBox0',this)">📋 複製剩餘名額</button>
     </div>`;
   }
